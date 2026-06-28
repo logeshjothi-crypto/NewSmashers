@@ -54,10 +54,10 @@ function stripAdminControlsFromDOM() {
 }
 
 // ==========================================
-// 2. MASTER SQUAD DATABASE & SNAPSHOT MODELS
+// 2. MASTER SQUAD DATABASE
 // ==========================================
 const MASTER_ROSTER = [
-    "Abbas", "David", "Gaja", "Karthi Anna", "Karthi S G", 
+    "Abbas", "David", "Gaja", "Karthi anna", "Karthi S G", 
     "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
@@ -82,10 +82,10 @@ let ballHistory = [];
 let matchEnded = false;
 
 let matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || [];
-let appSettings = JSON.parse(localStorage.getItem("ns_settings")) || {
-    vibrateOnBall: false,
-    confirmUndo: false
-};
+let appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false };
+
+// Keep track of independent bowling spells within the active match
+let dynamicBowlerSpells = [];
 
 // ==========================================
 // 3. NAVIGATION CONTROLLERS
@@ -110,23 +110,19 @@ function hideAllViews() {
     views.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
 }
 
-// ==========================================
-// 4. BROADCASTING LIVE DATA PACKAGES TO CLOUD
-// ==========================================
 function broadcastLiveStateToFirebase() {
     if (!isAdmin) return; 
-    
     const dataPayload = {
         currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
         currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
         totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
-        teamAPlayers, teamBPlayers
+        teamAPlayers, teamBPlayers, dynamicBowlerSpells
     };
     database.ref("live_match_stream").set(dataPayload);
 }
 
 // ==========================================
-// 5. MATCH INITIALIZATION ENGINE
+// 4. MATCH INITIALIZATION ENGINE
 // ==========================================
 function createMatch() {
     let teamA = document.getElementById("teamA").value.trim();
@@ -142,6 +138,7 @@ function createMatch() {
     ballHistory = []; currentInnings = 1;
     firstInningsScore = 0; firstInningsWickets = 0; firstInningsFours = 0;
     currentStrikerName = ""; currentBowlerName = ""; matchEnded = false;
+    dynamicBowlerSpells = [];
 
     teamAPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
     teamBPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
@@ -155,12 +152,16 @@ function createMatch() {
 
     hideAllViews();
     document.getElementById("scoreboard").classList.remove("hidden");
-    
     broadcastLiveStateToFirebase();
 }
 
 function createPlayerObject(id, name) {
-    return { id, name, enabled: false, ballsFaced: 0, currentOverBalls: 0, foursHit: 0, isOut: false, ballsBowled: 0, wicketsTaken: 0, fieldingPoints: 0 };
+    return { 
+        id, name, enabled: false, 
+        ballsFaced: 0, currentOverBalls: 0, foursHit: 0, isOut: false, 
+        ballsBowled: 0, wicketsTaken: 0, fieldingPoints: 0,
+        widesBowled: 0, noBallsBowled: 0 
+    };
 }
 
 function toggleMatrixPlayerRow(teamSide, id, isChecked) {
@@ -176,7 +177,7 @@ function toggleMatrixPlayerRow(teamSide, id, isChecked) {
 }
 
 // ==========================================
-// 6. MATRIX SCOREBOARD WORKBOARD COMPONENT
+// 5. MATRIX SCOREBOARD WORKBOARD COMPONENT
 // ==========================================
 function renderDualMatrixUI() {
     renderSideContainer("teamAMatrixContainer", teamAPlayers, 'A');
@@ -197,35 +198,45 @@ function renderSideContainer(containerId, playersList, sideCode) {
         const outStyle = p.isOut ? "text-decoration: line-through; color: #ef4444;" : "";
 
         const controlButtonsHTML = isAdmin ? `
-            <div style="display: flex; align-items: center; gap: 3px;">
-                <span style="font-size: 14px;">🏏</span>
-                <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'dot')" style="padding: 4px 8px; background:#475569; color:#fff; border:none; border-radius:4px; font-size:11px;">Dot</button>
-                <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="padding: 4px 8px; background:#2563eb; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">+4</button>
-                <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'out-btn')" style="padding: 4px 8px; background:#dc2626; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">OUT</button>
+            <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 3px;">
+                    <div>
+                        <span style="font-size: 13px;">🏏</span>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'dot')" style="padding: 4px 6px; background:#475569; color:#fff; border:none; border-radius:4px; font-size:11px;">Dot</button>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="padding: 4px 6px; background:#2563eb; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">+4</button>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'out-btn')" style="padding: 4px 6px; background:#dc2626; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">OUT</button>
+                    </div>
+                    <div>
+                        <span style="font-size: 13px;">🏃</span>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-ball')" style="padding: 4px 5px; background:#334155; color:#94a3b8; border:none; border-radius:4px; font-size:11px;">B (${p.ballsBowled})</button>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wicket')" style="padding: 4px 5px; background:#dc2626; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">W (${p.wicketsTaken})</button>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; border-top: 1px dashed #334155; padding-top: 4px;">
+                    <div>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wide')" style="padding: 2px 6px; background:#f59e0b; color:#0f172a; border:none; border-radius:4px; font-size:10px; font-weight:bold;">WD (${p.widesBowled || 0})</button>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-noball')" style="padding: 2px 6px; background:#f59e0b; color:#0f172a; border:none; border-radius:4px; font-size:10px; font-weight:bold;">NB (${p.noBallsBowled || 0})</button>
+                    </div>
+                    <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="padding: 3px 8px; background:#10b981; color:#fff; border:none; border-radius:4px; font-size:11px;">Field Pts (${p.fieldingPoints})</button>
+                </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 3px;">
-                <span style="font-size: 14px;">🏃</span>
-                <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-ball')" style="padding: 4px 6px; background:#334155; color:#94a3b8; border:none; border-radius:4px; font-size:11px;">Ball (${p.ballsBowled})</button>
-                <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wicket')" style="padding: 4px 6px; background:#dc2626; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">W (${p.wicketsTaken})</button>
-            </div>
-            <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="padding: 4px 8px; background:#10b981; color:#fff; border:none; border-radius:4px; font-size:11px;">Pts (${p.fieldingPoints})</button>
         ` : `
-            <div style="font-size:12px; color:#94a3b8;">
-                Bowling: <b>${p.ballsBowled} b (${p.wicketsTaken} W)</b> | Fielding Pts: <b style="color:#10b981;">${p.fieldingPoints}</b>
+            <div style="font-size:11px; color:#94a3b8; width: 100%;">
+                Bowling: <b>${p.ballsBowled}b (${p.wicketsTaken}W)</b> | Extras: <b>WD:${p.widesBowled || 0} NB:${p.noBallsBowled || 0}</b> | Fielding: <b style="color:#10b981;">${p.fieldingPoints} Pts</b>
             </div>
         `;
 
         html += `
             <div class="player-matrix-row" style="${bgStyle} padding: 10px; margin-bottom: 6px; border-radius: 8px; border: 1px solid #334155;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        ${isAdmin ? `<input type="checkbox" ${checkedAttr} onclick="toggleMatrixPlayerRow('${sideCode}', ${p.id}, this.checked)" style="transform: scale(1.2); cursor: pointer;">` : '🏃'}
-                        <span style="font-weight: bold; font-size: 14px; color: #fff; ${outStyle}">${p.name}</span>
-                        ${p.ballsFaced > 0 && !p.isOut ? `<span style="font-size:11px; color:#94a3b8;">(${p.ballsFaced}b faced / Over: ${p.currentOverBalls}b)</span>` : ''}
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        ${isAdmin ? `<input type="checkbox" ${checkedAttr} onclick="toggleMatrixPlayerRow('${sideCode}', ${p.id}, this.checked)" style="transform: scale(1.1); cursor: pointer;">` : '🏃'}
+                        <span style="font-weight: bold; font-size: 13px; color: #fff; ${outStyle}">${p.name}</span>
+                        ${p.ballsFaced > 0 && !p.isOut ? `<span style="font-size:10px; color:#94a3b8;">(${p.ballsFaced}b / Ov: ${p.currentOverBalls}b)</span>` : ''}
                     </div>
                     <div style="display: flex; gap: 4px;">
-                        ${p.isOut ? '<span style="background:#ef4444; color:#fff; padding:1px 4px; font-size:10px; border-radius:4px; font-weight:bold;">OUT</span>' : ''}
-                        ${p.foursHit > 0 && !p.isOut ? `<span style="background:#2563eb; color:#fff; padding:1px 4px; font-size:10px; border-radius:4px; font-weight:bold;">★ ${p.foursHit} FOURS</span>` : ''}
+                        ${p.isOut ? '<span style="background:#ef4444; color:#fff; padding:1px 4px; font-size:9px; border-radius:4px; font-weight:bold;">OUT</span>' : ''}
+                        ${p.foursHit > 0 && !p.isOut ? `<span style="background:#2563eb; color:#fff; padding:1px 4px; font-size:9px; border-radius:4px; font-weight:bold;">★ ${p.foursHit} 4s</span>` : ''}
                     </div>
                 </div>
                 <div style="display: flex; gap: 4px; justify-content: space-between; align-items: center;">
@@ -260,14 +271,40 @@ function rebuildActiveDropdownOptions() {
 }
 
 function changeActiveStriker(name) { currentStrikerName = name; broadcastLiveStateToFirebase(); }
-function changeActiveBowler(name) { currentBowlerName = name; broadcastLiveStateToFirebase(); }
+
+// Tracking bowler innings allocation
+function changeActiveBowler(name) { 
+    if (name && name !== currentBowlerName) {
+        // If the bowler had balls logged in their previous spell, allocate that spell to their historical log
+        if (currentBowlerName) {
+            let activePool = currentInnings === 1 ? teamBPlayers : teamAPlayers;
+            let lastBowlerObj = activePool.find(p => p.name === currentBowlerName);
+            if (lastBowlerObj && lastBowlerObj.ballsBowled > 0) {
+                dynamicBowlerSpells.push({
+                    name: lastBowlerObj.name,
+                    balls: lastBowlerObj.ballsBowled,
+                    wickets: lastBowlerObj.wicketsTaken,
+                    matchId: "match_" + Date.now()
+                });
+                // Reset active display values for their new incoming spell entry
+                lastBowlerObj.ballsBowled = 0;
+                lastBowlerObj.wicketsTaken = 0;
+            }
+        }
+    }
+    currentBowlerName = name; 
+    broadcastLiveStateToFirebase(); 
+}
 
 // ==========================================
-// 7. REALTIME LIVE MATCH SCORING CONTROL
+// 6. REALTIME MATCH SCORING CONTROLS
 // ==========================================
+
 function executeDirectAction(sideCode, playerId, type) {
-    if (matchEnded && type !== 'field-point' && type !== 'bowl-ball' && type !== 'bowl-wicket') {
-        alert("Match has finished!"); return;
+    // FIX: Add an explicit safety check to ensure 'type' exists before processing array evaluations
+    if (matchEnded && type && !['field-point', 'bowl-ball', 'bowl-wicket', 'bowl-wide', 'bowl-noball'].includes(type)) {
+        alert("Match has finished!"); 
+        return;
     }
 
     let activePool = sideCode === 'A' ? teamAPlayers : teamBPlayers;
@@ -279,7 +316,8 @@ function executeDirectAction(sideCode, playerId, type) {
     ballHistory.push({
         type, side: sideCode, playerId, currentStrikerName, currentBowlerName,
         totalRuns, totalWickets, totalBalls, currentInnings, totalTeamFours, matchEnded,
-        teamASnapshot: JSON.stringify(teamAPlayers), teamBSnapshot: JSON.stringify(teamBPlayers)
+        teamASnapshot: JSON.stringify(teamAPlayers), teamBSnapshot: JSON.stringify(teamBPlayers),
+        spellsSnapshot: JSON.stringify(dynamicBowlerSpells)
     });
 
     if (type === 'dot') {
@@ -303,6 +341,8 @@ function executeDirectAction(sideCode, playerId, type) {
     }
     else if (type === 'bowl-ball') targetPlayer.ballsBowled += 1;
     else if (type === 'bowl-wicket') { targetPlayer.ballsBowled += 1; targetPlayer.wicketsTaken += 1; }
+    else if (type === 'bowl-wide') { targetPlayer.widesBowled = (targetPlayer.widesBowled || 0) + 1; }
+    else if (type === 'bowl-noball') { targetPlayer.noBallsBowled = (targetPlayer.noBallsBowled || 0) + 1; }
     else if (type === 'field-point') targetPlayer.fieldingPoints += 1;
 
     updateScoreboardDisplay();
@@ -321,6 +361,7 @@ function undoLastBall() {
     matchEnded = lastEvent.matchEnded || false;
 
     teamAPlayers = JSON.parse(lastEvent.teamASnapshot); teamBPlayers = JSON.parse(lastEvent.teamBSnapshot);
+    dynamicBowlerSpells = JSON.parse(lastEvent.spellsSnapshot || "[]");
 
     updateScoreboardDisplay(); renderDualMatrixUI(); rebuildActiveDropdownOptions();
     broadcastLiveStateToFirebase();
@@ -353,7 +394,6 @@ function updateScoreboardDisplay() {
     let series = calculateDailySeriesWins();
     document.getElementById("liveSeriesTracker").innerText = `Wins Tally Today: ${currentTeamA} (${series.winA}) - (${series.winB}) ${currentTeamB}`;
 
-    // FIX 1: Cleared out recursive updates to fix infinite execution crashes
     if (currentInnings === 1 && totalWickets >= checkedActiveCount && checkedActiveCount > 0) {
         firstInningsScore = totalRuns; firstInningsWickets = totalWickets; firstInningsFours = totalTeamFours;
         alert(`1st Innings Complete! All batsmen out. ${currentTeamA} scored ${firstInningsScore} runs.`);
@@ -375,18 +415,41 @@ function updateScoreboardDisplay() {
 }
 
 // ==========================================
-// 8. DATA LEADERBOARD FILTERS & RECORD KEEPING
+// 7. DATA LEADERBOARD FILTERS & RECORD KEEPING
 // ==========================================
 function saveMatchToHistory(resultText = "Match Completed") {
+    // Flush any remaining active bowler spell into the log history array before archiving
+    if (currentBowlerName) {
+        let activePool = currentInnings === 1 ? teamBPlayers : teamAPlayers;
+        let finalBowlerObj = activePool.find(p => p.name === currentBowlerName);
+        if (finalBowlerObj && finalBowlerObj.ballsBowled > 0) {
+            dynamicBowlerSpells.push({
+                name: finalBowlerObj.name,
+                balls: finalBowlerObj.ballsBowled,
+                wickets: finalBowlerObj.wicketsTaken,
+                matchId: "match_" + Date.now()
+            });
+        }
+    }
+
     let matchPlayers = [];
     teamAPlayers.filter(p => p.enabled).concat(teamBPlayers.filter(p => p.enabled)).forEach(p => {
-        matchPlayers.push({ name: p.name, fours: p.foursHit, isNotOut: !p.isOut && (p.ballsFaced > 0 || p.foursHit > 0), wickets: p.wicketsTaken, points: p.fieldingPoints });
+        matchPlayers.push({ 
+            name: p.name, fours: p.foursHit, 
+            isNotOut: !p.isOut && (p.ballsFaced > 0 || p.foursHit > 0), 
+            ballsFaced: p.ballsFaced,
+            points: p.fieldingPoints 
+        });
     });
 
     const completedMatch = {
-        id: "match_" + Date.now(), timestamp: new Date().toISOString(), teams: `${currentTeamA} vs ${currentTeamB}`, result: resultText,
+        id: "match_" + Date.now(), 
+        timestamp: new Date().toISOString(), 
+        teams: `${currentTeamA} vs ${currentTeamB}`, 
+        result: resultText,
         totals: `${currentTeamA}: ${firstInningsScore}/${firstInningsWickets} [${firstInningsFours}x4] | ${currentTeamB}: ${totalRuns}/${totalWickets} [${totalTeamFours}x4]`,
-        players: matchPlayers
+        players: matchPlayers,
+        bowlerSpells: dynamicBowlerSpells 
     };
     
     matchHistory.unshift(completedMatch);
@@ -422,43 +485,129 @@ function renderMatchHistory() {
         }
     }
 
-    let accumulatedRoster = {};
-    MASTER_ROSTER.forEach(name => { accumulatedRoster[name] = { name, fours: 0, wickets: 0, points: 0, matchesPlayed: 0 }; });
+    // Initialize metrics tracking dictionaries
+    let batsmanMetrics = {};
+    let bowlerMetrics = {};
+    let fielderMetrics = {};
+
+    MASTER_ROSTER.forEach(name => {
+        batsmanMetrics[name] = { name, innings: 0, fours: 0, ballsFaced: 0, bestFours: 0, tenPlusMatches: 0 };
+        bowlerMetrics[name] = { name, innings: 0, wickets: 0, totalBalls: 0, bestWicketsDay: {}, fiveWicketsMatches: 0 };
+        fielderMetrics[name] = { name, matches: 0, totalPoints: 0, bestPoints: 0, totalTeamBallsInMatches: 0 };
+    });
 
     filteredMatches.forEach(match => {
-        let seen = new Set();
-        match.players.forEach(p => {
-            if (accumulatedRoster[p.name]) {
-                accumulatedRoster[p.name].fours += p.fours; accumulatedRoster[p.name].wickets += p.wickets; accumulatedRoster[p.name].points += p.points;
-                if (!seen.has(p.name)) { accumulatedRoster[p.name].matchesPlayed += 1; seen.add(p.name); }
-            }
+        let matchDateKey = new Date(match.timestamp).toLocaleDateString();
+        let playersSeenInMatch = new Set();
+
+        // Parse Batting & General Fields
+        if (match.players) {
+            match.players.forEach(p => {
+                playersSeenInMatch.add(p.name);
+                if (batsmanMetrics[p.name] && p.ballsFaced > 0) {
+                    batsmanMetrics[p.name].innings += 1;
+                    batsmanMetrics[p.name].fours += p.fours;
+                    batsmanMetrics[p.name].ballsFaced += p.ballsFaced;
+                    if (p.fours > batsmanMetrics[p.name].bestFours) batsmanMetrics[p.name].bestFours = p.fours;
+                    if (p.fours >= 10) batsmanMetrics[p.name].tenPlusMatches += 1;
+                }
+                if (fielderMetrics[p.name]) {
+                    fielderMetrics[p.name].totalPoints += p.points;
+                    if (p.points > fielderMetrics[p.name].bestPoints) fielderMetrics[p.name].bestPoints = p.points;
+                }
+            });
+        }
+
+        // Parse Independent Bowler Spells
+        if (match.bowlerSpells) {
+            match.bowlerSpells.forEach(spell => {
+                if (bowlerMetrics[spell.name] && spell.balls > 0) {
+                    bowlerMetrics[spell.name].innings += 1;
+                    bowlerMetrics[spell.name].wickets += spell.wickets;
+                    bowlerMetrics[spell.name].totalBalls += spell.balls;
+                    
+                    // Track daily best wickets calculations
+                    bowlerMetrics[spell.name].bestWicketsDay[matchDateKey] = (bowlerMetrics[spell.name].bestWicketsDay[matchDateKey] || 0) + spell.wickets;
+                    if (spell.wickets >= 5) bowlerMetrics[spell.name].fiveWicketsMatches += 1;
+                }
+            });
+        }
+
+        playersSeenInMatch.forEach(name => {
+            if (fielderMetrics[name]) fielderMetrics[name].matches += 1;
         });
     });
 
-    let leaderboardList = Object.values(accumulatedRoster).filter(p => p.matchesPlayed > 0);
-    if (leaderboardList.length === 0) {
-        historyContainer.innerHTML = `<p style="text-align:center; opacity:0.6; padding: 20px;">No metrics logged for this selection range.</p>`; return;
-    }
+    // Format metrics into arrays and filter active players
+    let foursLB = Object.values(batsmanMetrics).filter(p => p.innings > 0).sort((a,b) => b.fours - a.fours);
+    let wicketsLB = Object.values(bowlerMetrics).filter(p => p.innings > 0).sort((a,b) => b.wickets - a.wickets);
+    let pointsLB = Object.values(fielderMetrics).filter(p => p.matches > 0).sort((a,b) => b.totalPoints - a.totalPoints);
 
-    let foursLB = [...leaderboardList].sort((a,b) => b.fours - a.fours);
-    let wicketsLB = [...leaderboardList].sort((a,b) => b.wickets - a.wickets);
-    let pointsLB = [...leaderboardList].sort((a,b) => b.points - a.points);
-
-    let html = `<div class="accumulated-leaderboards-card" style="background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #f59e0b;">
-        <h3 style="color:#f59e0b; text-align:center; text-transform:uppercase; font-size:15px; margin-bottom:10px;">🏆 ACCUMULATED STANDINGS HUB 🏆</h3>
-        <p style="text-align:center; font-size:11px; color:#94a3b8; margin-bottom:15px;">Aggregated from ${filteredMatches.length} match records</p>
+    let html = `<div class="accumulated-leaderboards-card" style="background: #0f172a; padding: 10px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #f59e0b;">
+        <h3 style="color:#f59e0b; text-align:center; text-transform:uppercase; font-size:14px; margin-bottom:10px;">🏆 ACCUMULATED STANDINGS HUB 🏆</h3>
+        
         <div class="report-title">🏏 OVERALL MOST FOURS RANKING</div>
-        <table class="report-table"><thead><tr><th>Players</th><th>MAT</th><th style="text-align:right;">4's</th></tr></thead><tbody>
-            ${foursLB.map(p => `<tr><td>${p.name}</td><td>${p.matchesPlayed}</td><td style="text-align:right; font-weight:bold; color:#2563eb;">${p.fours}</td></tr>`).join('')}
-        </tbody></table>
-        <div class="report-title"> OVERALL MOST WICKETS RANKING</div>
-        <table class="report-table"><thead><tr><th>Players</th><th>MAT</th><th style="text-align:right;">W's</th></tr></thead><tbody>
-            ${wicketsLB.map(p => `<tr><td>${p.name}</td><td>${p.matchesPlayed}</td><td style="text-align:right; font-weight:bold; color:#ef4444;">${p.wickets}</td></tr>`).join('')}
-        </tbody></table>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width:12%;">RK</th>
+                    <th style="width:36%;">PLAYERS</th>
+                    <th style="width:13%;">INN</th>
+                    <th style="width:13%;">4'S</th>
+                    <th style="width:16%;">S.RATE</th>
+                    <th style="width:13%;">B'S</th>
+                    <th style="width:13%;">10'S</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${foursLB.map((p, idx) => {
+                    let strikeRate = p.ballsFaced > 0 ? ((p.fours / p.ballsFaced) * 100).toFixed(2) : "0.00";
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#2563eb; font-weight:bold;">${p.fours}</td><td>${strikeRate}</td><td>${p.bestFours}</td><td>${p.tenPlusMatches}</td></tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+
+        <div class="report-title">🏃 OVERALL MOST WICKETS RANKING</div>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width:12%;">RK</th>
+                    <th style="width:36%;">PLAYERS</th>
+                    <th style="width:13%;">INN</th>
+                    <th style="width:13%;">W'S</th>
+                    <th style="width:16%;">AVG</th>
+                    <th style="width:13%;">B'S</th>
+                    <th style="width:13%;">5'W</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${wicketsLB.map((p, idx) => {
+                    let avg = p.wickets > 0 ? (p.totalBalls / p.wickets).toFixed(2) : "0.00";
+                    let bestDayVal = Object.values(p.bestWicketsDay).length > 0 ? Math.max(...Object.values(p.bestWicketsDay)) : 0;
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#ef4444; font-weight:bold;">${p.wickets}</td><td>${avg}</td><td>${bestDayVal}</td><td>${p.fiveWicketsMatches}</td></tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+
         <div class="report-title">🧤 OVERALL MOST F'POINTS RANKING</div>
-        <table class="report-table"><thead><tr><th>Players</th><th>MAT</th><th style="text-align:right;">P's</th></tr></thead><tbody>
-            ${pointsLB.map(p => `<tr><td>${p.name}</td><td>${p.matchesPlayed}</td><td style="text-align:right; font-weight:bold; color:#34d399;">${p.points}</td></tr>`).join('')}
-        </tbody></table>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width:12%;">RK</th>
+                    <th style="width:38%;">PLAYERS</th>
+                    <th style="width:14%;">MAT</th>
+                    <th style="width:14%;">P'S</th>
+                    <th style="width:14%;">B'S</th>
+                    <th style="width:20%;">EFFICIENCY</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${pointsLB.map((p, idx) => {
+                    let efficiency = p.matches > 0 ? (p.totalPoints / p.matches).toFixed(2) + "%" : "0.00%";
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#34d399; font-weight:bold;">${p.totalPoints}</td><td>${p.bestPoints}</td><td>${efficiency}</td></tr>`;
+                }).join('')}
+            </tbody>
+        </table>
     </div><h4 style="color:#94a3b8; font-size:12px; text-transform:uppercase; margin-bottom:10px;">📋 Individual Match Log Breakdown</h4>`;
 
     filteredMatches.forEach(match => {
@@ -485,12 +634,11 @@ function loadSettingsUI() { document.getElementById("settingVibrate").checked = 
 function saveSettingsFromUI() { appSettings.vibrateOnBall = document.getElementById("settingVibrate").checked; appSettings.confirmUndo = document.getElementById("settingConfirmUndo").checked; localStorage.setItem("ns_settings", JSON.stringify(appSettings)); alert("Preferences Saved!"); showMainMenu(); }
 
 // ==========================================
-// 9. AUTOMATIC READ-ONLY SYNC LISTENER
+// 8. AUTOMATIC READ-ONLY SYNC LISTENER
 // ==========================================
 function startGlobalCloudSyncListener() {
     checkUserRolePermissions();
 
-    // FIX 2: Added conditional filter execution to prevent incoming loop overwrites for Admin
     database.ref("tournament_match_history").on("value", (snapshot) => {
         const storedHistory = snapshot.val();
         if (storedHistory) {
@@ -510,7 +658,7 @@ function startGlobalCloudSyncListener() {
                 totalBalls = data.totalBalls; currentInnings = data.currentInnings; firstInningsScore = data.firstInningsScore;
                 firstInningsWickets = data.firstInningsWickets; firstInningsFours = data.firstInningsFours; totalTeamFours = data.totalTeamFours;
                 matchEnded = data.matchEnded; currentStrikerName = data.currentStrikerName; currentBowlerName = data.currentBowlerName;
-                teamAPlayers = data.teamAPlayers; teamBPlayers = data.teamBPlayers;
+                teamAPlayers = data.teamAPlayers; teamBPlayers = data.teamBPlayers; dynamicBowlerSpells = data.dynamicBowlerSpells || [];
 
                 hideAllViews();
                 document.getElementById("scoreboard").classList.remove("hidden");
@@ -524,4 +672,3 @@ function startGlobalCloudSyncListener() {
 }
 
 startGlobalCloudSyncListener();
-
