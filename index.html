@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewSmashers v2.0</title>
+    
+    <!-- Firebase Standard Core Framework Compat Libraries (Required for Mobile WebView Platforms) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* Core App Protection Styles */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { background: #0f172a; color: white; padding: 20px; }
+        .container { max-width: 500px; margin: auto; }
+        .logo { font-size: 50px; text-align: center; margin-top: 10px; }
+        h1, .tagline { text-align: center; }
+        h1 { font-size: 36px; margin-top: 5px; }
+        .tagline { color: #94a3b8; margin-bottom: 25px; font-size: 14px; }
+        .card { background: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+        .hidden { display: none !important; }
+        
+        .menu-btn { width: 100%; padding: 14px; margin: 8px 0; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; color: white; }
+        .primary-btn { background: #2563eb; }
+        .primary-btn:hover { background: #1d4ed8; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 10px; font-size: 15px; background: #334155; color: white; }
+        input::placeholder { color: #94a3b8; }
+        
+        .action-trigger { cursor: pointer; font-size: 12px; font-weight: bold; border: none; border-radius: 6px; transition: transform 0.1s ease; }
+        .action-trigger:active { transform: scale(0.95); }
+
+        /* Report Table Styling */
+        .report-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 13px; text-align: left; }
+        .report-table th { background: #334155; color: #f59e0b; padding: 8px; font-weight: bold; text-transform: uppercase; }
+        .report-table td { padding: 8px; border-bottom: 1px solid #334155; color: #e2e8f0; }
+        .report-title { background: #f59e0b; color: #0f172a; padding: 6px 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; margin-top: 15px; margin-bottom: 5px; border-radius: 4px; }
+        
+        /* Filter Control Styles */
+        .filter-panel { background: #0f172a; padding: 12px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; }
+        .filter-group { display: flex; gap: 8px; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- App Header Identity -->
+        <div class="logo">🏏</div>
+        <h1 id="appTitleHeader">NewSmashers</h1>
+        <p id="appTaglineBanner" class="tagline">Simple • Fast • Smart</p>
+
+        <!-- 1. MAIN MENU VIEW -->
+        <div id="mainMenu" class="card">
+            <button class="menu-btn primary-btn" onclick="showMatchForm()">➕ Create Match</button>
+            <button class="menu-btn" style="background: #334155;" onclick="showMatchHistory()">📂 Match Performance Center</button>
+            <button class="menu-btn" style="background: #334155;" onclick="showSettings()">⚙️ Settings</button>
+        </div>
+
+        <!-- 2. MATCH CREATION FORM VIEW -->
+        <div id="matchForm" class="card hidden">
+            <h2>Create Match</h2>
+            <input type="text" id="teamA" placeholder="Team A Name (e.g., CSK)">
+            <input type="text" id="teamB" placeholder="Team B Name (e.g., SBG)">
+            <button class="menu-btn primary-btn" style="margin-top: 10px;" onclick="createMatch()">Start Match</button>
+            <button class="menu-btn" style="background:#475569; margin-top:5px;" onclick="showMainMenu()">Cancel</button>
+        </div>
+
+        <!-- 3. DUAL-TEAM MATRIX SCOREBOARD VIEW -->
+        <div id="scoreboard" class="card hidden">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 15px; text-align: center;">
+                <h3 id="liveTeams" style="color: #3b82f6; font-size: 18px; line-height: 1.3;">CSK vs SBG</h3>
+                <p id="liveSeriesTracker" style="color: #60a5fa; font-size: 14px; font-weight: bold; opacity: 0.9; margin: 2px 0;">Wins Tally Today: 0 - 0</p>
+                <p id="liveFoursCounter" style="color: #34d399; font-size: 14px; font-weight: bold;">Total Team 4s: 0</p>
+            </div>
+
+            <!-- ACTIVE MATCHUP LIVE DROPDOWNS -->
+            <div id="activeMatchupCardPanel" style="background: #0f172a; padding: 12px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #2563eb;">
+                <h4 style="margin: 0 0 8px 0; color: #2563eb; text-align: center; font-size: 13px;">⚡ ACTIVE FACE-OFF ⚡</h4>
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;">
+                        <label style="color: #94a3b8; font-size: 11px;">🏏 Batsman</label>
+                        <select id="activeBatsmanSelect" onchange="changeActiveStriker(this.value)"></select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #94a3b8; font-size: 11px;">🏃 Bowler</label>
+                        <select id="activeBowlerSelect" onchange="changeActiveBowler(this.value)"></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TEAM A MATRIX SECTION -->
+            <div id="teamAHeaderBanner" style="background: #2563eb; padding: 6px 12px; border-radius: 6px; margin-bottom: 6px; font-weight: bold; font-size: 13px;">TEAM A</div>
+            <div id="teamAMatrixContainer" style="max-height: 220px; overflow-y: auto; margin-bottom: 15px; padding-right: 4px;"></div>
+
+            <!-- TEAM B MATRIX SECTION -->
+            <div id="teamBHeaderBanner" style="background: #10b981; padding: 6px 12px; border-radius: 6px; margin-bottom: 6px; font-weight: bold; font-size: 13px;">TEAM B</div>
+            <div id="teamBMatrixContainer" style="max-height: 220px; overflow-y: auto; margin-bottom: 20px; padding-right: 4px;"></div>
+
+            <button id="adminUndoBtnElement" class="menu-btn" style="background:#ef4444;" onclick="undoLastBall()">↩️ Undo Last Action</button>
+            <button id="adminExitBtnElement" class="menu-btn" style="background:#475569; margin-top: 5px;" onclick="showMainMenu()">Exit to Menu</button>
+        </div>
+
+        <!-- 4. MATCH HISTORY & TOURNAMENT ACCUMULATOR VIEW -->
+        <div id="matchHistoryView" class="card hidden">
+            <h2>Roster Accumulator Hub</h2>
+            
+            <div class="filter-panel">
+                <label style="color: #3b82f6; font-size: 12px; font-weight: bold;">📅 SELECT LOG FILTER METRIC</label>
+                <select id="leaderboardFilterScope" onchange="toggleFilterInputs(this.value)">
+                    <option value="overall">Overall Status (All Match Logs)</option>
+                    <option value="date">Date-Wise Range Filter</option>
+                    <option value="month">Month-Wise Filter</option>
+                </select>
+                
+                <div id="dateFilterGroup" class="filter-group hidden">
+                    <input type="date" id="filterSpecificDate" onchange="renderMatchHistory()">
+                </div>
+
+                <div id="monthFilterGroup" class="filter-group hidden">
+                    <select id="filterSpecificMonth" onchange="renderMatchHistory()">
+                        <option value="01">January</option> <option value="02">February</option>
+                        <option value="03">March</option>   <option value="04">April</option>
+                        <option value="05">May</option>     <option value="06">June</option>
+                        <option value="07">July</option>    <option value="08">August</option>
+                        <option value="09">September</option><option value="10">October</option>
+                        <option value="11">November</option> <option value="12">December</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="historyListContainer" style="max-height: 480px; overflow-y: auto; padding-right: 4px;"></div>
+            
+            <button id="adminClearHistoryBtnElement" class="menu-btn" style="background:#ef4444; margin-top: 15px;" onclick="clearAllHistory()">🗑️ Clear All History</button>
+            <button class="menu-btn" style="background:#475569; margin-top: 5px;" onclick="showMainMenu()">⬅ Back to Menu</button>
+        </div>
+
+        <!-- 5. SETTINGS VIEW -->
+        <div id="settingsView" class="card hidden">
+            <h2>Settings</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin:20px 0;">
+                <label>Haptic Vibration on Click</label>
+                <input type="checkbox" id="settingVibrate" style="width: auto; transform: scale(1.3);">
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin:20px 0;">
+                <label>Confirm Before Undo Actions</label>
+                <input type="checkbox" id="settingConfirmUndo" style="width: auto; transform: scale(1.3);">
+            </div>
+            <button class="menu-btn primary-btn" onclick="saveSettingsFromUI()">💾 Save Preferences</button>
+            <button class="menu-btn" style="background:#475569; margin-top:10px;" onclick="showMainMenu()">Cancel</button>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
+
