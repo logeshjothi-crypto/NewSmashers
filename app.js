@@ -84,14 +84,19 @@ let matchEnded = false;
 let matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || [];
 let appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false };
 
-// Keep track of independent bowling spells within the active match
 let dynamicBowlerSpells = [];
 
 // ==========================================
 // 3. NAVIGATION CONTROLLERS
 // ==========================================
-function showMainMenu() { hideAllViews(); document.getElementById("mainMenu").classList.remove("hidden"); }
-function showMatchForm() { hideAllViews(); document.getElementById("matchForm").classList.remove("hidden"); }
+function showMainMenu() { 
+    hideAllViews(); 
+    document.getElementById("mainMenu").classList.remove("hidden"); 
+}
+function showMatchForm() { 
+    hideAllViews(); 
+    document.getElementById("matchForm").classList.remove("hidden"); 
+}
 
 function showMatchHistory() { 
     hideAllViews(); 
@@ -103,7 +108,11 @@ function showMatchHistory() {
     renderMatchHistory(); 
 }
 
-function showSettings() { hideAllViews(); document.getElementById("settingsView").classList.remove("hidden"); loadSettingsUI(); }
+function showSettings() { 
+    hideAllViews(); 
+    document.getElementById("settingsView").classList.remove("hidden"); 
+    loadSettingsUI(); 
+}
 
 function hideAllViews() {
     const views = ["mainMenu", "matchForm", "scoreboard", "matchHistoryView", "settingsView"];
@@ -145,6 +154,7 @@ function createMatch() {
 
     document.getElementById("teamAHeaderBanner").innerText = `${currentTeamA} SQUAD SHEET`;
     document.getElementById("teamBHeaderBanner").innerText = `${currentTeamB} SQUAD SHEET`;
+    document.getElementById("postMatchShareCard").classList.add("hidden");
 
     updateScoreboardDisplay();
     renderDualMatrixUI();
@@ -272,23 +282,24 @@ function rebuildActiveDropdownOptions() {
 
 function changeActiveStriker(name) { currentStrikerName = name; broadcastLiveStateToFirebase(); }
 
-// Tracking bowler innings allocation
 function changeActiveBowler(name) { 
     if (name && name !== currentBowlerName) {
-        // If the bowler had balls logged in their previous spell, allocate that spell to their historical log
         if (currentBowlerName) {
             let activePool = currentInnings === 1 ? teamBPlayers : teamAPlayers;
             let lastBowlerObj = activePool.find(p => p.name === currentBowlerName);
-            if (lastBowlerObj && lastBowlerObj.ballsBowled > 0) {
+            if (lastBowlerObj && (lastBowlerObj.ballsBowled > 0 || (lastBowlerObj.widesBowled || 0) > 0 || (lastBowlerObj.noBallsBowled || 0) > 0)) {
                 dynamicBowlerSpells.push({
                     name: lastBowlerObj.name,
                     balls: lastBowlerObj.ballsBowled,
                     wickets: lastBowlerObj.wicketsTaken,
+                    wides: lastBowlerObj.widesBowled || 0,
+                    noballs: lastBowlerObj.noBallsBowled || 0,
                     matchId: "match_" + Date.now()
                 });
-                // Reset active display values for their new incoming spell entry
                 lastBowlerObj.ballsBowled = 0;
                 lastBowlerObj.wicketsTaken = 0;
+                lastBowlerObj.widesBowled = 0;
+                lastBowlerObj.noBallsBowled = 0;
             }
         }
     }
@@ -299,12 +310,9 @@ function changeActiveBowler(name) {
 // ==========================================
 // 6. REALTIME MATCH SCORING CONTROLS
 // ==========================================
-
 function executeDirectAction(sideCode, playerId, type) {
-    // FIX: Add an explicit safety check to ensure 'type' exists before processing array evaluations
     if (matchEnded && type && !['field-point', 'bowl-ball', 'bowl-wicket', 'bowl-wide', 'bowl-noball'].includes(type)) {
-        alert("Match has finished!"); 
-        return;
+        alert("Match has finished!"); return;
     }
 
     let activePool = sideCode === 'A' ? teamAPlayers : teamBPlayers;
@@ -363,6 +371,12 @@ function undoLastBall() {
     teamAPlayers = JSON.parse(lastEvent.teamASnapshot); teamBPlayers = JSON.parse(lastEvent.teamBSnapshot);
     dynamicBowlerSpells = JSON.parse(lastEvent.spellsSnapshot || "[]");
 
+    if (matchEnded) {
+        document.getElementById("postMatchShareCard").classList.remove("hidden");
+    } else {
+        document.getElementById("postMatchShareCard").classList.add("hidden");
+    }
+
     updateScoreboardDisplay(); renderDualMatrixUI(); rebuildActiveDropdownOptions();
     broadcastLiveStateToFirebase();
 }
@@ -404,10 +418,13 @@ function updateScoreboardDisplay() {
         broadcastLiveStateToFirebase();
     } else if (currentInnings === 2 && !matchEnded) {
         if (totalRuns > firstInningsScore) {
-            matchEnded = true; alert(`Match Finished! ${currentTeamB} chased down the total!`);
+            matchEnded = true; 
+            document.getElementById("postMatchShareCard").classList.remove("hidden");
+            alert(`Match Finished! ${currentTeamB} chased down the total!`);
             saveMatchToHistory(`${currentTeamB} won`);
         } else if (totalWickets >= checkedActiveCount && checkedActiveCount > 0) {
             matchEnded = true;
+            document.getElementById("postMatchShareCard").classList.remove("hidden");
             if (totalRuns === firstInningsScore) { alert("Match Tied!"); saveMatchToHistory("Match Tied"); }
             else { alert(`${currentTeamA} won by defending their total!`); saveMatchToHistory(`${currentTeamA} won`); }
         }
@@ -418,15 +435,16 @@ function updateScoreboardDisplay() {
 // 7. DATA LEADERBOARD FILTERS & RECORD KEEPING
 // ==========================================
 function saveMatchToHistory(resultText = "Match Completed") {
-    // Flush any remaining active bowler spell into the log history array before archiving
     if (currentBowlerName) {
         let activePool = currentInnings === 1 ? teamBPlayers : teamAPlayers;
         let finalBowlerObj = activePool.find(p => p.name === currentBowlerName);
-        if (finalBowlerObj && finalBowlerObj.ballsBowled > 0) {
+        if (finalBowlerObj && (finalBowlerObj.ballsBowled > 0 || (finalBowlerObj.widesBowled || 0) > 0 || (finalBowlerObj.noBallsBowled || 0) > 0)) {
             dynamicBowlerSpells.push({
                 name: finalBowlerObj.name,
                 balls: finalBowlerObj.ballsBowled,
                 wickets: finalBowlerObj.wicketsTaken,
+                wides: finalBowlerObj.widesBowled || 0,
+                noballs: finalBowlerObj.noBallsBowled || 0,
                 matchId: "match_" + Date.now()
             });
         }
@@ -434,11 +452,35 @@ function saveMatchToHistory(resultText = "Match Completed") {
 
     let matchPlayers = [];
     teamAPlayers.filter(p => p.enabled).concat(teamBPlayers.filter(p => p.enabled)).forEach(p => {
+        // Find if this player has independent bowling spells recorded in this match
+        let totalSpellBalls = 0;
+        let totalSpellWickets = 0;
+        let totalSpellWides = 0;
+        let totalSpellNoBalls = 0;
+        let totalSpellInningsCount = 0;
+
+        dynamicBowlerSpells.forEach(s => {
+            if (s.name === p.name) {
+                totalSpellBalls += s.balls;
+                totalSpellWickets += s.wickets;
+                totalSpellWides += (s.wides || 0);
+                totalSpellNoBalls += (s.noballs || 0);
+                totalSpellInningsCount += 1;
+            }
+        });
+
         matchPlayers.push({ 
-            name: p.name, fours: p.foursHit, 
+            name: p.name, 
+            fours: p.foursHit, 
             isNotOut: !p.isOut && (p.ballsFaced > 0 || p.foursHit > 0), 
             ballsFaced: p.ballsFaced,
-            points: p.fieldingPoints 
+            points: p.fieldingPoints,
+            // FIX: Explicitly save bowling counts to the log database payload
+            ballsBowled: totalSpellBalls,
+            wickets: totalSpellWickets,
+            wides: totalSpellWides,
+            noBalls: totalSpellNoBalls,
+            bowlingInningsCount: totalSpellInningsCount
         });
     });
 
@@ -457,6 +499,31 @@ function saveMatchToHistory(resultText = "Match Completed") {
     
     database.ref("tournament_match_history").set(matchHistory);
     broadcastLiveStateToFirebase();
+}
+
+function shareCurrentMatchToWhatsApp() {
+    if (matchHistory.length === 0) return;
+    const latest = matchHistory[0];
+    
+    let textReport = `🏆 *NewSmashers Match Report* 🏆\n`;
+    textReport += `🗓️ Date: ${new Date(latest.timestamp).toLocaleDateString()}\n`;
+    textReport += `⚔️ Matchup: *${latest.teams}*\n`;
+    textReport += `📊 Totals: ${latest.totals}\n`;
+    textReport += `🏁 Result: *${latest.result}*\n\n`;
+    textReport += `🏏 *Top Performances:* \n`;
+    
+    latest.players.forEach(p => {
+        if (p.fours > 0 || p.wickets > 0 || p.points > 0) {
+            textReport += `• *${p.name}*: `;
+            if (p.fours > 0) textReport += ` ${p.fours}x4 `;
+            if (p.wickets > 0) textReport += ` 🛑 ${p.wickets}W `;
+            if (p.points > 0) textReport += ` 🧤 ${p.points} Pts`;
+            textReport += `\n`;
+        }
+    });
+    
+    const encodedText = encodeURIComponent(textReport);
+    window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
 }
 
 function renderMatchHistory() {
@@ -485,60 +552,48 @@ function renderMatchHistory() {
         }
     }
 
-    // Initialize metrics tracking dictionaries
     let batsmanMetrics = {};
     let bowlerMetrics = {};
     let fielderMetrics = {};
 
-    MASTER_ROSTER.forEach(name => {
-        batsmanMetrics[name] = { name, innings: 0, fours: 0, ballsFaced: 0, bestFours: 0, tenPlusMatches: 0 };
-        bowlerMetrics[name] = { name, innings: 0, wickets: 0, totalBalls: 0, bestWicketsDay: {}, fiveWicketsMatches: 0 };
-        fielderMetrics[name] = { name, matches: 0, totalPoints: 0, bestPoints: 0, totalTeamBallsInMatches: 0 };
-    });
-
     filteredMatches.forEach(match => {
         let matchDateKey = new Date(match.timestamp).toLocaleDateString();
-        let playersSeenInMatch = new Set();
 
-        // Parse Batting & General Fields
         if (match.players) {
             match.players.forEach(p => {
-                playersSeenInMatch.add(p.name);
-                if (batsmanMetrics[p.name] && p.ballsFaced > 0) {
+                // Initialize metric records dynamically if not present
+                if (!batsmanMetrics[p.name]) batsmanMetrics[p.name] = { name: p.name, innings: 0, fours: 0, ballsFaced: 0, bestFours: 0, tenPlusMatches: 0 };
+                if (!bowlerMetrics[p.name]) bowlerMetrics[p.name] = { name: p.name, innings: 0, wickets: 0, totalBalls: 0, bestWicketsDay: {}, fiveWicketsMatches: 0 };
+                if (!fielderMetrics[p.name]) fielderMetrics[p.name] = { name: p.name, matches: 0, totalPoints: 0, bestPoints: 0 };
+
+                // Accumulate Batting Stats
+                if (p.ballsFaced > 0 || p.fours > 0) {
                     batsmanMetrics[p.name].innings += 1;
-                    batsmanMetrics[p.name].fours += p.fours;
-                    batsmanMetrics[p.name].ballsFaced += p.ballsFaced;
-                    if (p.fours > batsmanMetrics[p.name].bestFours) batsmanMetrics[p.name].bestFours = p.fours;
-                    if (p.fours >= 10) batsmanMetrics[p.name].tenPlusMatches += 1;
+                    batsmanMetrics[p.name].fours += (p.fours || 0);
+                    batsmanMetrics[p.name].ballsFaced += (p.ballsFaced || 0);
+                    if ((p.fours || 0) > batsmanMetrics[p.name].bestFours) batsmanMetrics[p.name].bestFours = p.fours;
+                    if ((p.fours || 0) >= 10) batsmanMetrics[p.name].tenPlusMatches += 1;
                 }
-                if (fielderMetrics[p.name]) {
-                    fielderMetrics[p.name].totalPoints += p.points;
-                    if (p.points > fielderMetrics[p.name].bestPoints) fielderMetrics[p.name].bestPoints = p.points;
-                }
-            });
-        }
 
-        // Parse Independent Bowler Spells
-        if (match.bowlerSpells) {
-            match.bowlerSpells.forEach(spell => {
-                if (bowlerMetrics[spell.name] && spell.balls > 0) {
-                    bowlerMetrics[spell.name].innings += 1;
-                    bowlerMetrics[spell.name].wickets += spell.wickets;
-                    bowlerMetrics[spell.name].totalBalls += spell.balls;
+                // Accumulate Bowling Stats
+                let bInnings = p.bowlingInningsCount || (p.ballsBowled > 0 ? 1 : 0);
+                if (bInnings > 0) {
+                    bowlerMetrics[p.name].innings += bInnings;
+                    bowlerMetrics[p.name].wickets += (p.wickets || 0);
+                    bowlerMetrics[p.name].totalBalls += (p.ballsBowled || 0);
                     
-                    // Track daily best wickets calculations
-                    bowlerMetrics[spell.name].bestWicketsDay[matchDateKey] = (bowlerMetrics[spell.name].bestWicketsDay[matchDateKey] || 0) + spell.wickets;
-                    if (spell.wickets >= 5) bowlerMetrics[spell.name].fiveWicketsMatches += 1;
+                    bowlerMetrics[p.name].bestWicketsDay[matchDateKey] = (bowlerMetrics[p.name].bestWicketsDay[matchDateKey] || 0) + (p.wickets || 0);
+                    if ((p.wickets || 0) >= 5) bowlerMetrics[p.name].fiveWicketsMatches += 1;
                 }
+
+                // Accumulate Fielding Stats
+                fielderMetrics[p.name].matches += 1;
+                fielderMetrics[p.name].totalPoints += (p.points || 0);
+                if ((p.points || 0) > fielderMetrics[p.name].bestPoints) fielderMetrics[p.name].bestPoints = p.points;
             });
         }
-
-        playersSeenInMatch.forEach(name => {
-            if (fielderMetrics[name]) fielderMetrics[name].matches += 1;
-        });
     });
 
-    // Format metrics into arrays and filter active players
     let foursLB = Object.values(batsmanMetrics).filter(p => p.innings > 0).sort((a,b) => b.fours - a.fours);
     let wicketsLB = Object.values(bowlerMetrics).filter(p => p.innings > 0).sort((a,b) => b.wickets - a.wickets);
     let pointsLB = Object.values(fielderMetrics).filter(p => p.matches > 0).sort((a,b) => b.totalPoints - a.totalPoints);
@@ -633,9 +688,6 @@ function clearAllHistory() {
 function loadSettingsUI() { document.getElementById("settingVibrate").checked = appSettings.vibrateOnBall; document.getElementById("settingConfirmUndo").checked = appSettings.confirmUndo; }
 function saveSettingsFromUI() { appSettings.vibrateOnBall = document.getElementById("settingVibrate").checked; appSettings.confirmUndo = document.getElementById("settingConfirmUndo").checked; localStorage.setItem("ns_settings", JSON.stringify(appSettings)); alert("Preferences Saved!"); showMainMenu(); }
 
-// ==========================================
-// 8. AUTOMATIC READ-ONLY SYNC LISTENER
-// ==========================================
 function startGlobalCloudSyncListener() {
     checkUserRolePermissions();
 
