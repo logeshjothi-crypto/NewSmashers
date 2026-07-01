@@ -58,7 +58,7 @@ function stripAdminControlsFromDOM() {
 // ==========================================
 const MASTER_ROSTER = [
     "Abbas", "David", "Gaja", "Karthi anna", "Karthi S G", 
-    "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
+    "Karthik bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
 ];
@@ -296,6 +296,7 @@ function changeActiveBowler(name) {
                     noballs: lastBowlerObj.noBallsBowled || 0,
                     matchId: "match_" + Date.now()
                 });
+                // Archive current spell counters to keep cumulative calculations accurate
                 lastBowlerObj.ballsBowled = 0;
                 lastBowlerObj.wicketsTaken = 0;
                 lastBowlerObj.widesBowled = 0;
@@ -452,7 +453,6 @@ function saveMatchToHistory(resultText = "Match Completed") {
 
     let matchPlayers = [];
     teamAPlayers.filter(p => p.enabled).concat(teamBPlayers.filter(p => p.enabled)).forEach(p => {
-        // Find if this player has independent bowling spells recorded in this match
         let totalSpellBalls = 0;
         let totalSpellWickets = 0;
         let totalSpellWides = 0;
@@ -475,7 +475,7 @@ function saveMatchToHistory(resultText = "Match Completed") {
             isNotOut: !p.isOut && (p.ballsFaced > 0 || p.foursHit > 0), 
             ballsFaced: p.ballsFaced,
             points: p.fieldingPoints,
-            // FIX: Explicitly save bowling counts to the log database payload
+            // FIX: Map actual cumulative stats straight to history variables
             ballsBowled: totalSpellBalls,
             wickets: totalSpellWickets,
             wides: totalSpellWides,
@@ -561,7 +561,6 @@ function renderMatchHistory() {
 
         if (match.players) {
             match.players.forEach(p => {
-                // Initialize metric records dynamically if not present
                 if (!batsmanMetrics[p.name]) batsmanMetrics[p.name] = { name: p.name, innings: 0, fours: 0, ballsFaced: 0, bestFours: 0, tenPlusMatches: 0 };
                 if (!bowlerMetrics[p.name]) bowlerMetrics[p.name] = { name: p.name, innings: 0, wickets: 0, totalBalls: 0, bestWicketsDay: {}, fiveWicketsMatches: 0 };
                 if (!fielderMetrics[p.name]) fielderMetrics[p.name] = { name: p.name, matches: 0, totalPoints: 0, bestPoints: 0 };
@@ -575,10 +574,10 @@ function renderMatchHistory() {
                     if ((p.fours || 0) >= 10) batsmanMetrics[p.name].tenPlusMatches += 1;
                 }
 
-                // Accumulate Bowling Stats
+                // FIX: Aggregate absolute counts directly into the metrics engine
                 let bInnings = p.bowlingInningsCount || (p.ballsBowled > 0 ? 1 : 0);
-                if (bInnings > 0) {
-                    bowlerMetrics[p.name].innings += bInnings;
+                if (bInnings > 0 || (p.wickets || 0) > 0) {
+                    bowlerMetrics[p.name].innings += (bInnings || 1);
                     bowlerMetrics[p.name].wickets += (p.wickets || 0);
                     bowlerMetrics[p.name].totalBalls += (p.ballsBowled || 0);
                     
@@ -595,7 +594,7 @@ function renderMatchHistory() {
     });
 
     let foursLB = Object.values(batsmanMetrics).filter(p => p.innings > 0).sort((a,b) => b.fours - a.fours);
-    let wicketsLB = Object.values(bowlerMetrics).filter(p => p.innings > 0).sort((a,b) => b.wickets - a.wickets);
+    let wicketsLB = Object.values(bowlerMetrics).filter(p => p.innings > 0 || p.wickets > 0).sort((a,b) => b.wickets - a.wickets);
     let pointsLB = Object.values(fielderMetrics).filter(p => p.matches > 0).sort((a,b) => b.totalPoints - a.totalPoints);
 
     let html = `<div class="accumulated-leaderboards-card" style="background: #0f172a; padding: 10px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #f59e0b;">
