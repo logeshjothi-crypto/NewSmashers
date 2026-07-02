@@ -764,5 +764,12 @@ function startGlobalCloudSyncListener() {
         showMainMenu();
     }
 }
-
+// Register standard browser app service worker configuration
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('data:text/javascript,self.addEventListener("fetch",e=>e.respondWith(fetch(e.request)));', {scope: './'})
+        .then(reg => console.log('PWA active on ground:', reg.scope))
+        .catch(err => console.log('PWA entry error:', err));
+    });
+}
 startGlobalCloudSyncListener();
