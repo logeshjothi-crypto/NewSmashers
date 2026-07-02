@@ -58,7 +58,7 @@ function stripAdminControlsFromDOM() {
 // ==========================================
 const MASTER_ROSTER = [
     "Abbas", "David", "Gaja", "Karthi anna", "Karthi S G", 
-    "Karthik bro", "Logan", "Madhan", "Praveen", "Raj", 
+    "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
 ];
@@ -89,14 +89,8 @@ let dynamicBowlerSpells = [];
 // ==========================================
 // 3. NAVIGATION CONTROLLERS
 // ==========================================
-function showMainMenu() { 
-    hideAllViews(); 
-    document.getElementById("mainMenu").classList.remove("hidden"); 
-}
-function showMatchForm() { 
-    hideAllViews(); 
-    document.getElementById("matchForm").classList.remove("hidden"); 
-}
+function showMainMenu() { hideAllViews(); document.getElementById("mainMenu").classList.remove("hidden"); }
+function showMatchForm() { hideAllViews(); document.getElementById("matchForm").classList.remove("hidden"); }
 
 function showMatchHistory() { 
     hideAllViews(); 
@@ -108,11 +102,7 @@ function showMatchHistory() {
     renderMatchHistory(); 
 }
 
-function showSettings() { 
-    hideAllViews(); 
-    document.getElementById("settingsView").classList.remove("hidden"); 
-    loadSettingsUI(); 
-}
+function showSettings() { hideAllViews(); document.getElementById("settingsView").classList.remove("hidden"); loadSettingsUI(); }
 
 function hideAllViews() {
     const views = ["mainMenu", "matchForm", "scoreboard", "matchHistoryView", "settingsView"];
@@ -154,7 +144,7 @@ function createMatch() {
 
     document.getElementById("teamAHeaderBanner").innerText = `${currentTeamA} SQUAD SHEET`;
     document.getElementById("teamBHeaderBanner").innerText = `${currentTeamB} SQUAD SHEET`;
-    document.getElementById("postMatchShareCard").classList.add("hidden");
+    document.getElementById("nextMatchCyclePanel").classList.add("hidden");
 
     updateScoreboardDisplay();
     renderDualMatrixUI();
@@ -175,7 +165,12 @@ function createPlayerObject(id, name) {
 }
 
 function toggleMatrixPlayerRow(teamSide, id, isChecked) {
-    if (matchEnded) return;
+    // Squad modification locks ONLY during an active match innings progression
+    if (totalBalls > 0 || totalRuns > 0 || totalWickets > 0 || currentInnings === 2) {
+        alert("Match has already started! Cannot edit squads mid-match.");
+        renderDualMatrixUI();
+        return;
+    }
     let targetList = teamSide === 'A' ? teamAPlayers : teamBPlayers;
     let player = targetList.find(p => p.id === id);
     if (player) {
@@ -184,6 +179,32 @@ function toggleMatrixPlayerRow(teamSide, id, isChecked) {
         rebuildActiveDropdownOptions();
         broadcastLiveStateToFirebase();
     }
+}
+
+function resetForNextMatchCycle() {
+    totalRuns = 0; totalWickets = 0; totalBalls = 0; totalTeamFours = 0;
+    ballHistory = []; currentInnings = 1;
+    firstInningsScore = 0; firstInningsWickets = 0; firstInningsFours = 0;
+    currentStrikerName = ""; currentBowlerName = ""; matchEnded = false;
+    dynamicBowlerSpells = [];
+
+    // Clear matching score statistics on existing roster but leave selection enabled for modifications
+    teamAPlayers.forEach(p => resetPlayerMatchMetrics(p));
+    teamBPlayers.forEach(p => resetPlayerMatchMetrics(p));
+
+    document.getElementById("nextMatchCyclePanel").classList.add("hidden");
+    
+    updateScoreboardDisplay();
+    renderDualMatrixUI();
+    rebuildActiveDropdownOptions();
+    broadcastLiveStateToFirebase();
+    alert("Scoreboard reset! You can now adjust squad selections before starting the next match.");
+}
+
+function resetPlayerMatchMetrics(p) {
+    p.ballsFaced = 0; p.currentOverBalls = 0; p.foursHit = 0; p.isOut = false;
+    p.ballsBowled = 0; p.wicketsTaken = 0; p.fieldingPoints = 0;
+    p.widesBowled = 0; p.noBallsBowled = 0;
 }
 
 // ==========================================
@@ -206,6 +227,18 @@ function renderSideContainer(containerId, playersList, sideCode) {
         const disabledAttr = p.enabled ? "" : "disabled";
         const checkedAttr = p.enabled ? "checked" : "";
         const outStyle = p.isOut ? "text-decoration: line-through; color: #ef4444;" : "";
+
+        // Check if squads can be deselected (only if the match hasn't started yet)
+        const isMatchStarted = (totalBalls > 0 || totalRuns > 0 || totalWickets > 0 || currentInnings === 2);
+        const checkboxDisabledAttr = isMatchStarted ? "disabled" : "";
+
+        // PERSISTENT FOURS VISIBILITY CONFIGURATION: Active = Blue, Out = Red
+        let foursBadgeHTML = "";
+        if (p.foursHit > 0 || p.isOut) {
+            const badgeColor = p.isOut ? "#dc2626" : "#2563eb";
+            const prefixSymbol = p.isOut ? "❌" : "★";
+            foursBadgeHTML = `<span style="background:${badgeColor}; color:#fff; padding:1px 5px; font-size:9px; border-radius:4px; font-weight:bold;">${prefixSymbol} ${p.foursHit} 4s</span>`;
+        }
 
         const controlButtonsHTML = isAdmin ? `
             <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
@@ -240,13 +273,12 @@ function renderSideContainer(containerId, playersList, sideCode) {
             <div class="player-matrix-row" style="${bgStyle} padding: 10px; margin-bottom: 6px; border-radius: 8px; border: 1px solid #334155;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        ${isAdmin ? `<input type="checkbox" ${checkedAttr} onclick="toggleMatrixPlayerRow('${sideCode}', ${p.id}, this.checked)" style="transform: scale(1.1); cursor: pointer;">` : '🏃'}
+                        ${isAdmin ? `<input type="checkbox" ${checkedAttr} ${checkboxDisabledAttr} onclick="toggleMatrixPlayerRow('${sideCode}', ${p.id}, this.checked)" style="transform: scale(1.1); cursor: pointer;">` : '🏃'}
                         <span style="font-weight: bold; font-size: 13px; color: #fff; ${outStyle}">${p.name}</span>
                         ${p.ballsFaced > 0 && !p.isOut ? `<span style="font-size:10px; color:#94a3b8;">(${p.ballsFaced}b / Ov: ${p.currentOverBalls}b)</span>` : ''}
                     </div>
                     <div style="display: flex; gap: 4px;">
-                        ${p.isOut ? '<span style="background:#ef4444; color:#fff; padding:1px 4px; font-size:9px; border-radius:4px; font-weight:bold;">OUT</span>' : ''}
-                        ${p.foursHit > 0 && !p.isOut ? `<span style="background:#2563eb; color:#fff; padding:1px 4px; font-size:9px; border-radius:4px; font-weight:bold;">★ ${p.foursHit} 4s</span>` : ''}
+                        ${foursBadgeHTML}
                     </div>
                 </div>
                 <div style="display: flex; gap: 4px; justify-content: space-between; align-items: center;">
@@ -296,7 +328,6 @@ function changeActiveBowler(name) {
                     noballs: lastBowlerObj.noBallsBowled || 0,
                     matchId: "match_" + Date.now()
                 });
-                // Archive current spell counters to keep cumulative calculations accurate
                 lastBowlerObj.ballsBowled = 0;
                 lastBowlerObj.wicketsTaken = 0;
                 lastBowlerObj.widesBowled = 0;
@@ -372,11 +403,8 @@ function undoLastBall() {
     teamAPlayers = JSON.parse(lastEvent.teamASnapshot); teamBPlayers = JSON.parse(lastEvent.teamBSnapshot);
     dynamicBowlerSpells = JSON.parse(lastEvent.spellsSnapshot || "[]");
 
-    if (matchEnded) {
-        document.getElementById("postMatchShareCard").classList.remove("hidden");
-    } else {
-        document.getElementById("postMatchShareCard").classList.add("hidden");
-    }
+    if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
+    else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
 
     updateScoreboardDisplay(); renderDualMatrixUI(); rebuildActiveDropdownOptions();
     broadcastLiveStateToFirebase();
@@ -420,12 +448,12 @@ function updateScoreboardDisplay() {
     } else if (currentInnings === 2 && !matchEnded) {
         if (totalRuns > firstInningsScore) {
             matchEnded = true; 
-            document.getElementById("postMatchShareCard").classList.remove("hidden");
+            document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
             alert(`Match Finished! ${currentTeamB} chased down the total!`);
             saveMatchToHistory(`${currentTeamB} won`);
         } else if (totalWickets >= checkedActiveCount && checkedActiveCount > 0) {
             matchEnded = true;
-            document.getElementById("postMatchShareCard").classList.remove("hidden");
+            document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
             if (totalRuns === firstInningsScore) { alert("Match Tied!"); saveMatchToHistory("Match Tied"); }
             else { alert(`${currentTeamA} won by defending their total!`); saveMatchToHistory(`${currentTeamA} won`); }
         }
@@ -452,20 +480,21 @@ function saveMatchToHistory(resultText = "Match Completed") {
     }
 
     let matchPlayers = [];
-    teamAPlayers.filter(p => p.enabled).concat(teamBPlayers.filter(p => p.enabled)).forEach(p => {
-        let totalSpellBalls = 0;
-        let totalSpellWickets = 0;
-        let totalSpellWides = 0;
-        let totalSpellNoBalls = 0;
-        let totalSpellInningsCount = 0;
+    // CRITICAL FIX: Loop cleanly through ALL players to prevent bowling drops
+    teamAPlayers.concat(teamBPlayers).filter(p => p.enabled).forEach(p => {
+        let cumulativeBalls = p.ballsBowled;
+        let cumulativeWickets = p.wicketsTaken;
+        let cumulativeWides = p.widesBowled || 0;
+        let cumulativeNoBalls = p.noBallsBowled || 0;
+        let cumulativeSpellCount = (p.ballsBowled > 0 || (p.widesBowled || 0) > 0 || (p.noBallsBowled || 0) > 0) ? 1 : 0;
 
         dynamicBowlerSpells.forEach(s => {
             if (s.name === p.name) {
-                totalSpellBalls += s.balls;
-                totalSpellWickets += s.wickets;
-                totalSpellWides += (s.wides || 0);
-                totalSpellNoBalls += (s.noballs || 0);
-                totalSpellInningsCount += 1;
+                cumulativeBalls += s.balls;
+                cumulativeWickets += s.wickets;
+                cumulativeWides += (s.wides || 0);
+                cumulativeNoBalls += (s.noballs || 0);
+                cumulativeSpellCount += 1;
             }
         });
 
@@ -475,12 +504,11 @@ function saveMatchToHistory(resultText = "Match Completed") {
             isNotOut: !p.isOut && (p.ballsFaced > 0 || p.foursHit > 0), 
             ballsFaced: p.ballsFaced,
             points: p.fieldingPoints,
-            // FIX: Map actual cumulative stats straight to history variables
-            ballsBowled: totalSpellBalls,
-            wickets: totalSpellWickets,
-            wides: totalSpellWides,
-            noBalls: totalSpellNoBalls,
-            bowlingInningsCount: totalSpellInningsCount
+            ballsBowled: cumulativeBalls,
+            wickets: cumulativeWickets,
+            wides: cumulativeWides,
+            noBalls: cumulativeNoBalls,
+            bowlingInningsCount: cumulativeSpellCount
         });
     });
 
@@ -501,27 +529,41 @@ function saveMatchToHistory(resultText = "Match Completed") {
     broadcastLiveStateToFirebase();
 }
 
-function shareCurrentMatchToWhatsApp() {
-    if (matchHistory.length === 0) return;
-    const latest = matchHistory[0];
-    
-    let textReport = `🏆 *NewSmashers Match Report* 🏆\n`;
-    textReport += `🗓️ Date: ${new Date(latest.timestamp).toLocaleDateString()}\n`;
-    textReport += `⚔️ Matchup: *${latest.teams}*\n`;
-    textReport += `📊 Totals: ${latest.totals}\n`;
-    textReport += `🏁 Result: *${latest.result}*\n\n`;
-    textReport += `🏏 *Top Performances:* \n`;
-    
-    latest.players.forEach(p => {
-        if (p.fours > 0 || p.wickets > 0 || p.points > 0) {
-            textReport += `• *${p.name}*: `;
-            if (p.fours > 0) textReport += ` ${p.fours}x4 `;
-            if (p.wickets > 0) textReport += ` 🛑 ${p.wickets}W `;
-            if (p.points > 0) textReport += ` 🧤 ${p.points} Pts`;
-            textReport += `\n`;
-        }
+// MOVE WHATSAPP TRIGGER HERE: Text-formatted table summaries based on chosen filters
+function shareAccumulatedStatsToWhatsApp() {
+    let filterScope = document.getElementById("leaderboardFilterScope").value;
+    let headingTitle = "OVERALL STATUS SUMMARY";
+    if (filterScope === "date") headingTitle = `SUMMARY REPORT FOR [${document.getElementById("filterSpecificDate").value || 'SELECTED DATE'}]`;
+    if (filterScope === "month") headingTitle = `SUMMARY REPORT FOR MONTH CODE: ${document.getElementById("filterSpecificMonth").value}`;
+
+    let textReport = `📊 *NewSmashers Leaderboard Report* 📊\n`;
+    textReport += `📅 Scope: *${headingTitle}*\n`;
+    textReport += `═══════════════════════\n\n`;
+
+    // Grabs values directly from the tables rendered in the DOM window
+    const tables = document.querySelectorAll("#historyListContainer table");
+    const titles = document.querySelectorAll("#historyListContainer .report-title");
+
+    if (tables.length === 0) {
+        alert("No tournament stats found for this filter scope to share!"); return;
+    }
+
+    titles.forEach((titleEl, idx) => {
+        textReport += `*${titleEl.innerText}*\n`;
+        const rows = tables[idx].querySelectorAll("tbody tr");
+        rows.forEach(row => {
+            const cols = row.querySelectorAll("td");
+            if (cols.length >= 4) {
+                const rank = cols[0].innerText;
+                const pName = cols[1].innerText;
+                const inn = cols[2].innerText;
+                const statVal = cols[3].innerText;
+                textReport += ` ${rank}. *${pName}* (Inn:${inn}) ➜ *${statVal}*\n`;
+            }
+        });
+        textReport += `\n`;
     });
-    
+
     const encodedText = encodeURIComponent(textReport);
     window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
 }
@@ -565,7 +607,6 @@ function renderMatchHistory() {
                 if (!bowlerMetrics[p.name]) bowlerMetrics[p.name] = { name: p.name, innings: 0, wickets: 0, totalBalls: 0, bestWicketsDay: {}, fiveWicketsMatches: 0 };
                 if (!fielderMetrics[p.name]) fielderMetrics[p.name] = { name: p.name, matches: 0, totalPoints: 0, bestPoints: 0 };
 
-                // Accumulate Batting Stats
                 if (p.ballsFaced > 0 || p.fours > 0) {
                     batsmanMetrics[p.name].innings += 1;
                     batsmanMetrics[p.name].fours += (p.fours || 0);
@@ -574,9 +615,9 @@ function renderMatchHistory() {
                     if ((p.fours || 0) >= 10) batsmanMetrics[p.name].tenPlusMatches += 1;
                 }
 
-                // FIX: Aggregate absolute counts directly into the metrics engine
+                // LEADERBOARD RESOLUTION FIX: Accurate matching logic checks counts
                 let bInnings = p.bowlingInningsCount || (p.ballsBowled > 0 ? 1 : 0);
-                if (bInnings > 0 || (p.wickets || 0) > 0) {
+                if (bInnings > 0 || (p.wickets || 0) > 0 || (p.ballsBowled || 0) > 0) {
                     bowlerMetrics[p.name].innings += (bInnings || 1);
                     bowlerMetrics[p.name].wickets += (p.wickets || 0);
                     bowlerMetrics[p.name].totalBalls += (p.ballsBowled || 0);
@@ -585,7 +626,6 @@ function renderMatchHistory() {
                     if ((p.wickets || 0) >= 5) bowlerMetrics[p.name].fiveWicketsMatches += 1;
                 }
 
-                // Accumulate Fielding Stats
                 fielderMetrics[p.name].matches += 1;
                 fielderMetrics[p.name].totalPoints += (p.points || 0);
                 if ((p.points || 0) > fielderMetrics[p.name].bestPoints) fielderMetrics[p.name].bestPoints = p.points;
@@ -710,6 +750,9 @@ function startGlobalCloudSyncListener() {
                 firstInningsWickets = data.firstInningsWickets; firstInningsFours = data.firstInningsFours; totalTeamFours = data.totalTeamFours;
                 matchEnded = data.matchEnded; currentStrikerName = data.currentStrikerName; currentBowlerName = data.currentBowlerName;
                 teamAPlayers = data.teamAPlayers; teamBPlayers = data.teamBPlayers; dynamicBowlerSpells = data.dynamicBowlerSpells || [];
+
+                if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
+                else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
 
                 hideAllViews();
                 document.getElementById("scoreboard").classList.remove("hidden");
