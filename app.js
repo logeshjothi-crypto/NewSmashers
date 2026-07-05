@@ -57,8 +57,8 @@ function stripAdminControlsFromDOM() {
 // 2. MASTER SQUAD DATABASE
 // ==========================================
 const MASTER_ROSTER = [
-    "Abbas", "David", "Gaja", "Karthi anna", "Karthi S G", 
-    "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
+    "Abbas", "David", "Gaja", "Karthi Bro", "Karthi S G", 
+    "Karthik", "Logu", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
 ];
@@ -80,6 +80,7 @@ let firstInningsFours = 0;
 let totalTeamFours = 0; 
 let ballHistory = [];
 let matchEnded = false;
+let inningsTransitionPending = false; // Flag to hold manual transition
 
 let matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || [];
 let appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false };
@@ -115,7 +116,7 @@ function broadcastLiveStateToFirebase() {
         currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
         currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
         totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
-        teamAPlayers, teamBPlayers, dynamicBowlerSpells
+        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending
     };
     database.ref("live_match_stream").set(dataPayload);
 }
@@ -137,14 +138,16 @@ function createMatch() {
     ballHistory = []; currentInnings = 1;
     firstInningsScore = 0; firstInningsWickets = 0; firstInningsFours = 0;
     currentStrikerName = ""; currentBowlerName = ""; matchEnded = false;
+    inningsTransitionPending = false;
     dynamicBowlerSpells = [];
 
     teamAPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
     teamBPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
 
-    document.getElementById("teamAHeaderBanner").innerText = `${currentTeamA} SQUAD SHEET`;
-    document.getElementById("teamBHeaderBanner").innerText = `${currentTeamB} SQUAD SHEET`;
+    document.getElementById("teamAHeaderBanner").firstChild.textContent = `${currentTeamA} SQUAD SHEET`;
+    document.getElementById("teamBHeaderBanner").firstChild.textContent = `${currentTeamB} SQUAD SHEET`;
     document.getElementById("nextMatchCyclePanel").classList.add("hidden");
+    document.getElementById("manualInningsClosurePanel").classList.add("hidden");
 
     updateScoreboardDisplay();
     renderDualMatrixUI();
@@ -165,8 +168,8 @@ function createPlayerObject(id, name) {
 }
 
 function toggleMatrixPlayerRow(teamSide, id, isChecked) {
-    // Squad modification locks ONLY during an active match innings progression
-    if (totalBalls > 0 || totalRuns > 0 || totalWickets > 0 || currentInnings === 2) {
+    let isMatchStarted = (totalBalls > 0 || totalRuns > 0 || totalWickets > 0 || currentInnings === 2);
+    if (isMatchStarted) {
         alert("Match has already started! Cannot edit squads mid-match.");
         renderDualMatrixUI();
         return;
@@ -186,13 +189,14 @@ function resetForNextMatchCycle() {
     ballHistory = []; currentInnings = 1;
     firstInningsScore = 0; firstInningsWickets = 0; firstInningsFours = 0;
     currentStrikerName = ""; currentBowlerName = ""; matchEnded = false;
+    inningsTransitionPending = false;
     dynamicBowlerSpells = [];
 
-    // Clear matching score statistics on existing roster but leave selection enabled for modifications
     teamAPlayers.forEach(p => resetPlayerMatchMetrics(p));
     teamBPlayers.forEach(p => resetPlayerMatchMetrics(p));
 
     document.getElementById("nextMatchCyclePanel").classList.add("hidden");
+    document.getElementById("manualInningsClosurePanel").classList.add("hidden");
     
     updateScoreboardDisplay();
     renderDualMatrixUI();
@@ -213,6 +217,12 @@ function resetPlayerMatchMetrics(p) {
 function renderDualMatrixUI() {
     renderSideContainer("teamAMatrixContainer", teamAPlayers, 'A');
     renderSideContainer("teamBMatrixContainer", teamBPlayers, 'B');
+    
+    // Dynamically calculate and set team fours count badges
+    let teamAFours = teamAPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
+    let teamBFours = teamBPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
+    document.getElementById("teamAFoursBadge").innerText = `${teamAFours} Fours`;
+    document.getElementById("teamBFoursBadge").innerText = `${teamBFours} Fours`;
 }
 
 function renderSideContainer(containerId, playersList, sideCode) {
@@ -228,11 +238,9 @@ function renderSideContainer(containerId, playersList, sideCode) {
         const checkedAttr = p.enabled ? "checked" : "";
         const outStyle = p.isOut ? "text-decoration: line-through; color: #ef4444;" : "";
 
-        // Check if squads can be deselected (only if the match hasn't started yet)
-        const isMatchStarted = (totalBalls > 0 || totalRuns > 0 || totalWickets > 0 || currentInnings === 2);
+        let isMatchStarted = (totalBalls > 0 || totalRuns > 0 || totalWickets > 0 || currentInnings === 2);
         const checkboxDisabledAttr = isMatchStarted ? "disabled" : "";
 
-        // PERSISTENT FOURS VISIBILITY CONFIGURATION: Active = Blue, Out = Red
         let foursBadgeHTML = "";
         if (p.foursHit > 0 || p.isOut) {
             const badgeColor = p.isOut ? "#dc2626" : "#2563eb";
@@ -355,7 +363,7 @@ function executeDirectAction(sideCode, playerId, type) {
 
     ballHistory.push({
         type, side: sideCode, playerId, currentStrikerName, currentBowlerName,
-        totalRuns, totalWickets, totalBalls, currentInnings, totalTeamFours, matchEnded,
+        totalRuns, totalWickets, totalBalls, currentInnings, totalTeamFours, matchEnded, inningsTransitionPending,
         teamASnapshot: JSON.stringify(teamAPlayers), teamBSnapshot: JSON.stringify(teamBPlayers),
         spellsSnapshot: JSON.stringify(dynamicBowlerSpells)
     });
@@ -364,7 +372,7 @@ function executeDirectAction(sideCode, playerId, type) {
         targetPlayer.ballsFaced += 1; targetPlayer.currentOverBalls += 1; totalBalls += 1;
         if (targetPlayer.currentOverBalls >= 6) {
             targetPlayer.isOut = true; totalWickets += 1;
-            alert(` Wicket! ${targetPlayer.name} faced 6 balls without hitting a 4 boundary!`);
+            alert(`Wicket! ${targetPlayer.name} faced 6 balls without hitting a 4 boundary!`);
             currentStrikerName = ""; 
         }
     } 
@@ -399,12 +407,13 @@ function undoLastBall() {
     currentInnings = lastEvent.currentInnings; totalTeamFours = lastEvent.totalTeamFours;
     currentStrikerName = lastEvent.currentStrikerName; currentBowlerName = lastEvent.currentBowlerName;
     matchEnded = lastEvent.matchEnded || false;
-
-    teamAPlayers = JSON.parse(lastEvent.teamASnapshot); teamBPlayers = JSON.parse(lastEvent.teamBSnapshot);
-    dynamicBowlerSpells = JSON.parse(lastEvent.spellsSnapshot || "[]");
+    inningsTransitionPending = lastEvent.inningsTransitionPending || false;
 
     if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
     else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
+
+    if (inningsTransitionPending) { document.getElementById("manualInningsClosurePanel").classList.remove("hidden"); }
+    else { document.getElementById("manualInningsClosurePanel").classList.add("hidden"); }
 
     updateScoreboardDisplay(); renderDualMatrixUI(); rebuildActiveDropdownOptions();
     broadcastLiveStateToFirebase();
@@ -433,18 +442,15 @@ function updateScoreboardDisplay() {
         ? `${currentTeamA} (Score: ${totalRuns} / ${totalWickets}) - 1st Innings`
         : `${currentTeamB} (Score: ${totalRuns} / ${totalWickets}) - 2nd Innings [Target: ${firstInningsScore + 1}]`;
 
-    document.getElementById("liveFoursCounter").innerText = ` Total Team 4s: ${totalTeamFours}`;
+    document.getElementById("liveFoursCounter").innerText = `Total Match Boundaries: ${totalTeamFours} Fours`;
     let series = calculateDailySeriesWins();
     document.getElementById("liveSeriesTracker").innerText = `Wins Tally Today: ${currentTeamA} (${series.winA}) - (${series.winB}) ${currentTeamB}`;
 
-    if (currentInnings === 1 && totalWickets >= checkedActiveCount && checkedActiveCount > 0) {
-        firstInningsScore = totalRuns; firstInningsWickets = totalWickets; firstInningsFours = totalTeamFours;
-        alert(`1st Innings Complete! All batsmen out. ${currentTeamA} scored ${firstInningsScore} runs.`);
-        currentInnings = 2; totalRuns = 0; totalWickets = 0; totalBalls = 0; totalTeamFours = 0; currentStrikerName = ""; currentBowlerName = "";
-        
-        renderDualMatrixUI(); 
-        rebuildActiveDropdownOptions();
-        broadcastLiveStateToFirebase();
+    // MODIFICATION: Trigger cross-validation view bar instead of auto wiping screen out
+    if (currentInnings === 1 && totalWickets >= checkedActiveCount && checkedActiveCount > 0 && !inningsTransitionPending) {
+        inningsTransitionPending = true;
+        document.getElementById("manualInningsClosurePanel").classList.remove("hidden");
+        alert("Notice: Innings limit hit! Review player matrix entries. Tap 'Close & Transition Innings' when verified.");
     } else if (currentInnings === 2 && !matchEnded) {
         if (totalRuns > firstInningsScore) {
             matchEnded = true; 
@@ -458,6 +464,28 @@ function updateScoreboardDisplay() {
             else { alert(`${currentTeamA} won by defending their total!`); saveMatchToHistory(`${currentTeamA} won`); }
         }
     }
+}
+
+// Manual verification trigger click execution
+function commitInningsTransitionBreak() {
+    if (!isAdmin || !inningsTransitionPending) return;
+    
+    firstInningsScore = totalRuns; 
+    firstInningsWickets = totalWickets; 
+    firstInningsFours = totalTeamFours;
+    
+    currentInnings = 2; 
+    totalRuns = 0; totalWickets = 0; totalBalls = 0; totalTeamFours = 0; 
+    currentStrikerName = ""; currentBowlerName = "";
+    inningsTransitionPending = false;
+    
+    document.getElementById("manualInningsClosurePanel").classList.add("hidden");
+    alert(`1st Innings locked. ${currentTeamA} finishes on ${firstInningsScore}. Commencing 2nd Innings chase.`);
+    
+    renderDualMatrixUI(); 
+    rebuildActiveDropdownOptions();
+    updateScoreboardDisplay();
+    broadcastLiveStateToFirebase();
 }
 
 // ==========================================
@@ -480,7 +508,6 @@ function saveMatchToHistory(resultText = "Match Completed") {
     }
 
     let matchPlayers = [];
-    // CRITICAL FIX: Loop cleanly through ALL players to prevent bowling drops
     teamAPlayers.concat(teamBPlayers).filter(p => p.enabled).forEach(p => {
         let cumulativeBalls = p.ballsBowled;
         let cumulativeWickets = p.wicketsTaken;
@@ -529,7 +556,6 @@ function saveMatchToHistory(resultText = "Match Completed") {
     broadcastLiveStateToFirebase();
 }
 
-// MOVE WHATSAPP TRIGGER HERE: Text-formatted table summaries based on chosen filters
 function shareAccumulatedStatsToWhatsApp() {
     let filterScope = document.getElementById("leaderboardFilterScope").value;
     let headingTitle = "OVERALL STATUS SUMMARY";
@@ -540,7 +566,6 @@ function shareAccumulatedStatsToWhatsApp() {
     textReport += `📅 Scope: *${headingTitle}*\n`;
     textReport += `═══════════════════════\n\n`;
 
-    // Grabs values directly from the tables rendered in the DOM window
     const tables = document.querySelectorAll("#historyListContainer table");
     const titles = document.querySelectorAll("#historyListContainer .report-title");
 
@@ -565,7 +590,7 @@ function shareAccumulatedStatsToWhatsApp() {
     });
 
     const encodedText = encodeURIComponent(textReport);
-    window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
+    window.open replay = window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
 }
 
 function renderMatchHistory() {
@@ -615,7 +640,6 @@ function renderMatchHistory() {
                     if ((p.fours || 0) >= 10) batsmanMetrics[p.name].tenPlusMatches += 1;
                 }
 
-                // LEADERBOARD RESOLUTION FIX: Accurate matching logic checks counts
                 let bInnings = p.bowlingInningsCount || (p.ballsBowled > 0 ? 1 : 0);
                 if (bInnings > 0 || (p.wickets || 0) > 0 || (p.ballsBowled || 0) > 0) {
                     bowlerMetrics[p.name].innings += (bInnings || 1);
@@ -750,9 +774,13 @@ function startGlobalCloudSyncListener() {
                 firstInningsWickets = data.firstInningsWickets; firstInningsFours = data.firstInningsFours; totalTeamFours = data.totalTeamFours;
                 matchEnded = data.matchEnded; currentStrikerName = data.currentStrikerName; currentBowlerName = data.currentBowlerName;
                 teamAPlayers = data.teamAPlayers; teamBPlayers = data.teamBPlayers; dynamicBowlerSpells = data.dynamicBowlerSpells || [];
+                inningsTransitionPending = data.inningsTransitionPending || false;
 
                 if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
                 else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
+
+                if (inningsTransitionPending) { document.getElementById("manualInningsClosurePanel").classList.remove("hidden"); }
+                else { document.getElementById("manualInningsClosurePanel").classList.add("hidden"); }
 
                 hideAllViews();
                 document.getElementById("scoreboard").classList.remove("hidden");
@@ -764,12 +792,5 @@ function startGlobalCloudSyncListener() {
         showMainMenu();
     }
 }
-// Register standard browser app service worker configuration
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('data:text/javascript,self.addEventListener("fetch",e=>e.respondWith(fetch(e.request)));', {scope: './'})
-        .then(reg => console.log('PWA active on ground:', reg.scope))
-        .catch(err => console.log('PWA entry error:', err));
-    });
-}
+
 startGlobalCloudSyncListener();
