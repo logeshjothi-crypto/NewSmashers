@@ -57,8 +57,8 @@ function stripAdminControlsFromDOM() {
 // 2. MASTER SQUAD DATABASE
 // ==========================================
 const MASTER_ROSTER = [
-    "Abbas", "David", "Gaja", "Karthi Bro", "Karthi S G", 
-    "Karthik", "Logu", "Madhan", "Praveen", "Raj", 
+    "Abbas", "David", "Gaja", "Karthi Anna", "Karthi S G", 
+    "Karthick Bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
 ];
@@ -80,7 +80,7 @@ let firstInningsFours = 0;
 let totalTeamFours = 0; 
 let ballHistory = [];
 let matchEnded = false;
-let inningsTransitionPending = false; // Flag to hold manual transition
+let inningsTransitionPending = false; 
 
 let matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || [];
 let appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false };
@@ -218,7 +218,6 @@ function renderDualMatrixUI() {
     renderSideContainer("teamAMatrixContainer", teamAPlayers, 'A');
     renderSideContainer("teamBMatrixContainer", teamBPlayers, 'B');
     
-    // Dynamically calculate and set team fours count badges
     let teamAFours = teamAPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
     let teamBFours = teamBPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
     document.getElementById("teamAFoursBadge").innerText = `${teamAFours} Fours`;
@@ -446,7 +445,6 @@ function updateScoreboardDisplay() {
     let series = calculateDailySeriesWins();
     document.getElementById("liveSeriesTracker").innerText = `Wins Tally Today: ${currentTeamA} (${series.winA}) - (${series.winB}) ${currentTeamB}`;
 
-    // MODIFICATION: Trigger cross-validation view bar instead of auto wiping screen out
     if (currentInnings === 1 && totalWickets >= checkedActiveCount && checkedActiveCount > 0 && !inningsTransitionPending) {
         inningsTransitionPending = true;
         document.getElementById("manualInningsClosurePanel").classList.remove("hidden");
@@ -466,7 +464,6 @@ function updateScoreboardDisplay() {
     }
 }
 
-// Manual verification trigger click execution
 function commitInningsTransitionBreak() {
     if (!isAdmin || !inningsTransitionPending) return;
     
@@ -590,7 +587,7 @@ function shareAccumulatedStatsToWhatsApp() {
     });
 
     const encodedText = encodeURIComponent(textReport);
-    window.open replay = window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
 }
 
 function renderMatchHistory() {
@@ -791,6 +788,17 @@ function startGlobalCloudSyncListener() {
     } else {
         showMainMenu();
     }
+}
+
+// ==========================================
+// 8. PROGRESSIVE APPLICATION REGISTRATION
+// ==========================================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('data:text/javascript,self.addEventListener("fetch",e=>e.respondWith(fetch(e.request)));', {scope: './'})
+        .then(reg => console.log('PWA active on ground:', reg.scope))
+        .catch(err => console.log('PWA entry error:', err));
+    });
 }
 
 startGlobalCloudSyncListener();
