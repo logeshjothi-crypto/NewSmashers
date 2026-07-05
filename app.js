@@ -1,4 +1,3 @@
-
 // ==========================================
 // 1. FIREBASE ARCHITECTURE ENGINE CONNECTION
 // ==========================================
@@ -82,7 +81,7 @@ let totalTeamFours = 0;
 let ballHistory = [];
 let matchEnded = false;
 let inningsTransitionPending = false; 
-let matchEndPending = false; // 4. Manual validation lock for 2nd Innings
+let matchEndPending = false; 
 let finalMatchResultText = "";
 
 let matchHistory = [];
@@ -132,7 +131,6 @@ function broadcastLiveStateToFirebase() {
 function createMatch() {
     let teamAInput = document.getElementById("teamA");
     let teamBInput = document.getElementById("teamB");
-    
     if (!teamAInput || !teamBInput) return;
     
     let teamA = teamAInput.value.trim();
@@ -243,7 +241,6 @@ function renderSideContainer(containerId, playersList, sideCode) {
     let html = "";
     sortedPlayers.forEach(p => {
         const bgStyle = p.enabled ? "background: #1e293b;" : "background: #1e293b; opacity: 0.35;";
-        const disabledAttr = p.enabled ? "" : "disabled";
         const checkedAttr = p.enabled ? "checked" : "";
         const outStyle = p.isOut ? "text-decoration: line-through; color: #ef4444;" : "";
 
@@ -257,30 +254,36 @@ function renderSideContainer(containerId, playersList, sideCode) {
             foursBadgeHTML = `<span style="background:${badgeColor}; color:#fff; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold;">${prefixSymbol} ${p.foursHit} 4s</span>`;
         }
 
+        // VALIDATION CHECK: Buttons strictly disable unless names match chosen options
+        const isFaceoffActive = (currentStrikerName !== "" && currentBowlerName !== "");
+        const isActionDisabled = (!p.enabled || !isFaceoffActive || p.name !== currentStrikerName) ? "disabled" : "";
+        const isExtraDisabled = (!p.enabled || !isFaceoffActive) ? "disabled" : "";
+
         const controlButtonsHTML = isAdmin ? `
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
                     <div style="display: flex; gap: 4px;">
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'dot')" style="background:#475569; color:#fff;">Dot</button>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="background:#2563eb; color:#fff; width: 50px;">+4</button>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'out-btn')" style="background:#dc2626; color:#fff;">OUT</button>
+                        <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'dot')" style="background:#475569; color:#fff;">Dot</button>
+                        <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="background:#2563eb; color:#fff; width: 50px;">+4</button>
+                        <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'out-btn')" style="background:#dc2626; color:#fff;">OUT</button>
                     </div>
+                    <!-- CHANGED: Buttons turned into clean display text lables -->
                     <div style="display: flex; gap: 4px;">
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-ball')" style="background:#334155; color:#94a3b8;">B (${p.ballsBowled})</button>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wicket')" style="background:#dc2626; color:#fff;">W (${p.wicketsTaken})</button>
+                        <span class="stat-label-box">B: ${p.ballsBowled}</span>
+                        <span class="stat-label-box" style="border-color: #dc2626; color: #fca5a5;">W: ${p.wicketsTaken}</span>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; border-top: 1px dashed #334155; padding-top: 6px;">
                     <div style="display: flex; gap: 4px;">
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wide')" style="background:#f59e0b; color:#0f172a;">WD (${p.widesBowled || 0})</button>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-noball')" style="background:#f59e0b; color:#0f172a;">NB (${p.noBallsBowled || 0})</button>
+                        <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wide')" style="background:#f59e0b; color:#0f172a;">WD (${p.widesBowled || 0})</button>
+                        <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-noball')" style="background:#f59e0b; color:#0f172a;">NB (${p.noBallsBowled || 0})</button>
                     </div>
-                    <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="background:#10b981; color:#fff;">Field Pts (${p.fieldingPoints})</button>
+                    <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="background:#10b981; color:#fff;">Field Pts (${p.fieldingPoints})</button>
                 </div>
             </div>
         ` : `
             <div style="font-size:11px; color:#94a3b8; width: 100%;">
-                Bowling: <b>${p.ballsBowled}b (${p.wicketsTaken}W)</b> | Extras: <b>WD:${p.widesBowled || 0} NB:${p.noBallsBowled || 0}</b> | Fielding: <b style="color:#10b981;">${p.fieldingPoints} Pts</b>
+                Bowling: <b>B: ${p.ballsBowled} | W: ${p.wicketsTaken}</b> | Extras: <b>WD:${p.widesBowled || 0} NB:${p.noBallsBowled || 0}</b> | Fielding: <b style="color:#10b981;">${p.fieldingPoints} Pts</b>
             </div>
         `;
 
@@ -327,7 +330,12 @@ function rebuildActiveDropdownOptions() {
     bowlSelect.innerHTML = bowlHtml;
 }
 
-function changeActiveStriker(name) { currentStrikerName = name; broadcastLiveStateToFirebase(); }
+function changeActiveStriker(name) { 
+    currentStrikerName = name; 
+    renderDualMatrixUI(); // Refresh state immediately to enable buttons
+    broadcastLiveStateToFirebase(); 
+}
+
 function changeActiveBowler(name) { 
     if (name && name !== currentBowlerName) {
         if (currentBowlerName) {
@@ -347,14 +355,16 @@ function changeActiveBowler(name) {
             }
         }
     }
-    currentBowlerName = name; broadcastLiveStateToFirebase(); 
+    currentBowlerName = name; 
+    renderDualMatrixUI(); // Refresh state immediately to enable buttons
+    broadcastLiveStateToFirebase(); 
 }
 
 // ==========================================
 // 6. AUTOMATED DELIVERIES SCORING WORKFLOWS
 // ==========================================
 function executeDirectAction(sideCode, playerId, type) {
-    if (matchEnded && type && !['field-point', 'bowl-ball', 'bowl-wicket', 'bowl-wide', 'bowl-noball'].includes(type)) {
+    if (matchEnded && type && !['field-point', 'bowl-wide', 'bowl-noball'].includes(type)) {
         alert("Match has finished!"); return;
     }
 
@@ -362,7 +372,6 @@ function executeDirectAction(sideCode, playerId, type) {
     let targetPlayer = activePool.find(p => p.id === playerId);
     if (!targetPlayer || !targetPlayer.enabled) return;
 
-    // 2. Automated Bowler Tracking Handlers
     let bowlingPool = currentInnings === 1 ? teamBPlayers : teamAPlayers;
     let selectedBowlerObj = bowlingPool.find(p => p.name === currentBowlerName);
 
@@ -377,10 +386,10 @@ function executeDirectAction(sideCode, playerId, type) {
 
     if (type === 'dot') {
         targetPlayer.ballsFaced += 1; targetPlayer.currentOverBalls += 1; totalBalls += 1;
-        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; } // Auto-add log
+        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; }
         if (targetPlayer.currentOverBalls >= 6) {
             targetPlayer.isOut = true; totalWickets += 1;
-            if (selectedBowlerObj) { selectedBowlerObj.wicketsTaken += 1; } // Auto-add wicket log
+            if (selectedBowlerObj) { selectedBowlerObj.wicketsTaken += 1; }
             alert(`Wicket! ${targetPlayer.name} faced 6 balls without hitting a 4 boundary!`);
             currentStrikerName = ""; 
         }
@@ -388,20 +397,18 @@ function executeDirectAction(sideCode, playerId, type) {
     else if (type === 'four') {
         targetPlayer.ballsFaced += 1; targetPlayer.foursHit += 1; totalRuns += 4; totalTeamFours += 1; totalBalls += 1;
         targetPlayer.currentOverBalls = 0; 
-        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; } // Auto-add log
+        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; }
         alert(`🎉 Face-off complete! ${targetPlayer.name} hit a 4!`);
         currentBowlerName = ""; 
     } 
     else if (type === 'out-btn') {
         targetPlayer.isOut = true; totalWickets += 1;
-        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; selectedBowlerObj.wicketsTaken += 1; } // Auto-add log
+        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; selectedBowlerObj.wicketsTaken += 1; }
         alert(`❌ Wicket logged: ${targetPlayer.name} marked OUT.`);
-        if (targetPlayer.name === currentStrikerName) currentStrikerName = "";
+        currentStrikerName = ""; 
     }
-    else if (type === 'bowl-ball') targetPlayer.ballsBowled += 1;
-    else if (type === 'bowl-wicket') { targetPlayer.ballsBowled += 1; targetPlayer.wicketsTaken += 1; }
-    else if (type === 'bowl-wide') { targetPlayer.widesBowled = (targetPlayer.widesBowled || 0) + 1; }
-    else if (type === 'bowl-noball') { targetPlayer.noBallsBowled = (targetPlayer.noBallsBowled || 0) + 1; }
+    else if (type === 'bowl-wide') { if (selectedBowlerObj) selectedBowlerObj.widesBowled = (selectedBowlerObj.widesBowled || 0) + 1; }
+    else if (type === 'bowl-noball') { if (selectedBowlerObj) selectedBowlerObj.noBallsBowled = (selectedBowlerObj.noBallsBowled || 0) + 1; }
     else if (type === 'field-point') targetPlayer.fieldingPoints += 1;
 
     updateScoreboardDisplay();
@@ -469,7 +476,6 @@ function updateScoreboardDisplay() {
         document.getElementById("manualInningsClosurePanel").classList.remove("hidden");
         alert("Notice: 1st Innings completed! Verify table stats and tap Close & Transition Innings.");
     } else if (currentInnings === 2 && !matchEnded && !matchEndPending) {
-        // 4. Manual 2nd Innings Verification Banner
         if (totalRuns > firstInningsScore) {
             matchEndPending = true; finalMatchResultText = currentTeamB + " won";
             document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden");
@@ -639,7 +645,6 @@ function renderMatchHistory() {
 
         if (match.players) {
             match.players.forEach(p => {
-                // 3. Not Out tracking metrics setup
                 if (!batsmanMetrics[p.name]) batsmanMetrics[p.name] = { name: p.name, innings: 0, fours: 0, ballsFaced: 0, bestFours: 0, tenPlusMatches: 0, totalNotOuts: 0 };
                 if (!bowlerMetrics[p.name]) bowlerMetrics[p.name] = { name: p.name, innings: 0, wickets: 0, totalBalls: 0, bestWicketsDay: {}, fiveWicketsMatches: 0 };
                 if (!fielderMetrics[p.name]) fielderMetrics[p.name] = { name: p.name, matches: 0, totalPoints: 0, bestPoints: 0 };
@@ -648,7 +653,7 @@ function renderMatchHistory() {
                     batsmanMetrics[p.name].innings += 1;
                     batsmanMetrics[p.name].fours += (p.fours || 0);
                     batsmanMetrics[p.name].ballsFaced += (p.ballsFaced || 0);
-                    if (p.isNotOut) batsmanMetrics[p.name].totalNotOuts += 1; // Unbeaten tally
+                    if (p.isNotOut) batsmanMetrics[p.name].totalNotOuts += 1; 
                     if ((p.fours || 0) > batsmanMetrics[p.name].bestFours) batsmanMetrics[p.name].bestFours = p.fours;
                     if ((p.fours || 0) >= 10) batsmanMetrics[p.name].tenPlusMatches += 1;
                 }
