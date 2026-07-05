@@ -57,8 +57,8 @@ function stripAdminControlsFromDOM() {
 // 2. MASTER SQUAD DATABASE
 // ==========================================
 const MASTER_ROSTER = [
-    "Abbas", "David", "Gaja", "Karthi Anna", "Karthi S G", 
-    "Karthick Bro", "Logan", "Madhan", "Praveen", "Raj", 
+    "Abbas", "David", "Gaja", "Karthi Bro", "Karthi S G", 
+    "Karthik", "Logu", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
 ];
@@ -82,8 +82,18 @@ let ballHistory = [];
 let matchEnded = false;
 let inningsTransitionPending = false; 
 
-let matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || [];
-let appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false };
+let matchHistory = [];
+try {
+    matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || [];
+} catch(e) {
+    matchHistory = [];
+}
+let appSettings = { vibrateOnBall: false, confirmUndo: false };
+try {
+    appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false };
+} catch(e) {
+    appSettings = { vibrateOnBall: false, confirmUndo: false };
+}
 
 let dynamicBowlerSpells = [];
 
@@ -125,8 +135,16 @@ function broadcastLiveStateToFirebase() {
 // 4. MATCH INITIALIZATION ENGINE
 // ==========================================
 function createMatch() {
-    let teamA = document.getElementById("teamA").value.trim();
-    let teamB = document.getElementById("teamB").value.trim();
+    let teamAInput = document.getElementById("teamA");
+    let teamBInput = document.getElementById("teamB");
+    
+    if (!teamAInput || !teamBInput) {
+        alert("System Error: Form text fields missing.");
+        return;
+    }
+    
+    let teamA = teamAInput.value.trim();
+    let teamB = teamBInput.value.trim();
 
     if (teamA === "" || teamB === "") {
         alert("Please fill all fields correctly");
@@ -144,8 +162,8 @@ function createMatch() {
     teamAPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
     teamBPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
 
-    document.getElementById("teamAHeaderBanner").firstChild.textContent = `${currentTeamA} SQUAD SHEET`;
-    document.getElementById("teamBHeaderBanner").firstChild.textContent = `${currentTeamB} SQUAD SHEET`;
+    document.getElementById("teamAHeaderBanner").firstChild.textContent = teamA + " SQUAD SHEET ";
+    document.getElementById("teamBHeaderBanner").firstChild.textContent = teamB + " SQUAD SHEET ";
     document.getElementById("nextMatchCyclePanel").classList.add("hidden");
     document.getElementById("manualInningsClosurePanel").classList.add("hidden");
 
@@ -220,8 +238,8 @@ function renderDualMatrixUI() {
     
     let teamAFours = teamAPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
     let teamBFours = teamBPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
-    document.getElementById("teamAFoursBadge").innerText = `${teamAFours} Fours`;
-    document.getElementById("teamBFoursBadge").innerText = `${teamBFours} Fours`;
+    document.getElementById("teamAFoursBadge").innerText = teamAFours + " Fours";
+    document.getElementById("teamBFoursBadge").innerText = teamBFours + " Fours";
 }
 
 function renderSideContainer(containerId, playersList, sideCode) {
@@ -438,12 +456,12 @@ function updateScoreboardDisplay() {
     let checkedActiveCount = currentBattingPool.filter(p => p.enabled).length || 10;
 
     document.getElementById("liveTeams").innerText = currentInnings === 1 
-        ? `${currentTeamA} (Score: ${totalRuns} / ${totalWickets}) - 1st Innings`
-        : `${currentTeamB} (Score: ${totalRuns} / ${totalWickets}) - 2nd Innings [Target: ${firstInningsScore + 1}]`;
+        ? currentTeamA + " (Score: " + totalRuns + " / " + totalWickets + ") - 1st Innings"
+        : currentTeamB + " (Score: " + totalRuns + " / " + totalWickets + ") - 2nd Innings [Target: " + (firstInningsScore + 1) + "]";
 
-    document.getElementById("liveFoursCounter").innerText = `Total Match Boundaries: ${totalTeamFours} Fours`;
+    document.getElementById("liveFoursCounter").innerText = "Total Match Boundaries: " + totalTeamFours + " Fours";
     let series = calculateDailySeriesWins();
-    document.getElementById("liveSeriesTracker").innerText = `Wins Tally Today: ${currentTeamA} (${series.winA}) - (${series.winB}) ${currentTeamB}`;
+    document.getElementById("liveSeriesTracker").innerText = "Wins Tally Today: " + currentTeamA + " (" + series.winA + ") - (" + series.winB + ") " + currentTeamB;
 
     if (currentInnings === 1 && totalWickets >= checkedActiveCount && checkedActiveCount > 0 && !inningsTransitionPending) {
         inningsTransitionPending = true;
@@ -453,13 +471,13 @@ function updateScoreboardDisplay() {
         if (totalRuns > firstInningsScore) {
             matchEnded = true; 
             document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
-            alert(`Match Finished! ${currentTeamB} chased down the total!`);
-            saveMatchToHistory(`${currentTeamB} won`);
+            alert("Match Finished! " + currentTeamB + " chased down the total!");
+            saveMatchToHistory(currentTeamB + " won");
         } else if (totalWickets >= checkedActiveCount && checkedActiveCount > 0) {
             matchEnded = true;
             document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
             if (totalRuns === firstInningsScore) { alert("Match Tied!"); saveMatchToHistory("Match Tied"); }
-            else { alert(`${currentTeamA} won by defending their total!`); saveMatchToHistory(`${currentTeamA} won`); }
+            else { alert(currentTeamA + " won by defending their total!"); saveMatchToHistory(currentTeamA + " won"); }
         }
     }
 }
@@ -477,7 +495,7 @@ function commitInningsTransitionBreak() {
     inningsTransitionPending = false;
     
     document.getElementById("manualInningsClosurePanel").classList.add("hidden");
-    alert(`1st Innings locked. ${currentTeamA} finishes on ${firstInningsScore}. Commencing 2nd Innings chase.`);
+    alert("1st Innings locked. " + currentTeamA + " finishes on " + firstInningsScore + ". Commencing 2nd Innings chase.");
     
     renderDualMatrixUI(); 
     rebuildActiveDropdownOptions();
@@ -539,9 +557,9 @@ function saveMatchToHistory(resultText = "Match Completed") {
     const completedMatch = {
         id: "match_" + Date.now(), 
         timestamp: new Date().toISOString(), 
-        teams: `${currentTeamA} vs ${currentTeamB}`, 
+        teams: currentTeamA + " vs " + currentTeamB, 
         result: resultText,
-        totals: `${currentTeamA}: ${firstInningsScore}/${firstInningsWickets} [${firstInningsFours}x4] | ${currentTeamB}: ${totalRuns}/${totalWickets} [${totalTeamFours}x4]`,
+        totals: currentTeamA + ": " + firstInningsScore + "/" + firstInningsWickets + " [" + firstInningsFours + "x4] | " + currentTeamB + ": " + totalRuns + "/" + totalWickets + " [" + totalTeamFours + "x4]",
         players: matchPlayers,
         bowlerSpells: dynamicBowlerSpells 
     };
@@ -556,12 +574,12 @@ function saveMatchToHistory(resultText = "Match Completed") {
 function shareAccumulatedStatsToWhatsApp() {
     let filterScope = document.getElementById("leaderboardFilterScope").value;
     let headingTitle = "OVERALL STATUS SUMMARY";
-    if (filterScope === "date") headingTitle = `SUMMARY REPORT FOR [${document.getElementById("filterSpecificDate").value || 'SELECTED DATE'}]`;
-    if (filterScope === "month") headingTitle = `SUMMARY REPORT FOR MONTH CODE: ${document.getElementById("filterSpecificMonth").value}`;
+    if (filterScope === "date") headingTitle = "SUMMARY REPORT FOR [" + (document.getElementById("filterSpecificDate").value || 'SELECTED DATE') + "]";
+    if (filterScope === "month") headingTitle = "SUMMARY REPORT FOR MONTH CODE: " + document.getElementById("filterSpecificMonth").value;
 
-    let textReport = `📊 *NewSmashers Leaderboard Report* 📊\n`;
-    textReport += `📅 Scope: *${headingTitle}*\n`;
-    textReport += `═══════════════════════\n\n`;
+    let textReport = "📊 *NewSmashers Leaderboard Report* 📊\n";
+    textReport += "📅 Scope: *" + headingTitle + "*\n";
+    textReport += "═══════════════════════\n\n";
 
     const tables = document.querySelectorAll("#historyListContainer table");
     const titles = document.querySelectorAll("#historyListContainer .report-title");
@@ -571,7 +589,7 @@ function shareAccumulatedStatsToWhatsApp() {
     }
 
     titles.forEach((titleEl, idx) => {
-        textReport += `*${titleEl.innerText}*\n`;
+        textReport += "*" + titleEl.innerText + "*\n";
         const rows = tables[idx].querySelectorAll("tbody tr");
         rows.forEach(row => {
             const cols = row.querySelectorAll("td");
@@ -580,14 +598,14 @@ function shareAccumulatedStatsToWhatsApp() {
                 const pName = cols[1].innerText;
                 const inn = cols[2].innerText;
                 const statVal = cols[3].innerText;
-                textReport += ` ${rank}. *${pName}* (Inn:${inn}) ➜ *${statVal}*\n`;
+                textReport += " " + rank + ". *" + pName + "* (Inn:" + inn + ") ➜ *" + statVal + "*\n";
             }
         });
-        textReport += `\n`;
+        textReport += "\n";
     });
 
     const encodedText = encodeURIComponent(textReport);
-    window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
+    window.open("https://api.whatsapp.com/send?text=" + encodedText, '_blank');
 }
 
 function renderMatchHistory() {
@@ -796,9 +814,13 @@ function startGlobalCloudSyncListener() {
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('data:text/javascript,self.addEventListener("fetch",e=>e.respondWith(fetch(e.request)));', {scope: './'})
-        .then(reg => console.log('PWA active on ground:', reg.scope))
-        .catch(err => console.log('PWA entry error:', err));
+        .then(reg => console.log('PWA active:', reg.scope))
+        .catch(err => console.log('PWA error:', err));
     });
 }
+
+window.addEventListener('error', function(e) {
+    window.errorsLogged = (window.errorsLogged || "") + "\n" + e.message;
+});
 
 startGlobalCloudSyncListener();
