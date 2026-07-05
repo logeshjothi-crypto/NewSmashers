@@ -1,3 +1,4 @@
+
 // ==========================================
 // 1. FIREBASE ARCHITECTURE ENGINE CONNECTION
 // ==========================================
@@ -57,8 +58,8 @@ function stripAdminControlsFromDOM() {
 // 2. MASTER SQUAD DATABASE
 // ==========================================
 const MASTER_ROSTER = [
-    "Abbas", "David", "Gaja", "Karthi Bro", "Karthi S G", 
-    "Karthik", "Logu", "Madhan", "Praveen", "Raj", 
+    "Abbas", "David", "Gaja", "Karthi Anna", "Karthi S G", 
+    "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
 ];
@@ -81,19 +82,13 @@ let totalTeamFours = 0;
 let ballHistory = [];
 let matchEnded = false;
 let inningsTransitionPending = false; 
+let matchEndPending = false; // 4. Manual validation lock for 2nd Innings
+let finalMatchResultText = "";
 
 let matchHistory = [];
-try {
-    matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || [];
-} catch(e) {
-    matchHistory = [];
-}
+try { matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || []; } catch(e) { matchHistory = []; }
 let appSettings = { vibrateOnBall: false, confirmUndo: false };
-try {
-    appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false };
-} catch(e) {
-    appSettings = { vibrateOnBall: false, confirmUndo: false };
-}
+try { appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false }; } catch(e) { appSettings = { vibrateOnBall: false, confirmUndo: false }; }
 
 let dynamicBowlerSpells = [];
 
@@ -126,7 +121,7 @@ function broadcastLiveStateToFirebase() {
         currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
         currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
         totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
-        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending
+        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending
     };
     database.ref("live_match_stream").set(dataPayload);
 }
@@ -138,17 +133,13 @@ function createMatch() {
     let teamAInput = document.getElementById("teamA");
     let teamBInput = document.getElementById("teamB");
     
-    if (!teamAInput || !teamBInput) {
-        alert("System Error: Form text fields missing.");
-        return;
-    }
+    if (!teamAInput || !teamBInput) return;
     
     let teamA = teamAInput.value.trim();
     let teamB = teamBInput.value.trim();
 
     if (teamA === "" || teamB === "") {
-        alert("Please fill all fields correctly");
-        return;
+        alert("Please fill all fields correctly"); return;
     }
 
     currentTeamA = teamA; currentTeamB = teamB;
@@ -156,7 +147,7 @@ function createMatch() {
     ballHistory = []; currentInnings = 1;
     firstInningsScore = 0; firstInningsWickets = 0; firstInningsFours = 0;
     currentStrikerName = ""; currentBowlerName = ""; matchEnded = false;
-    inningsTransitionPending = false;
+    inningsTransitionPending = false; matchEndPending = false;
     dynamicBowlerSpells = [];
 
     teamAPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
@@ -166,6 +157,7 @@ function createMatch() {
     document.getElementById("teamBHeaderBanner").firstChild.textContent = teamB + " SQUAD SHEET ";
     document.getElementById("nextMatchCyclePanel").classList.add("hidden");
     document.getElementById("manualInningsClosurePanel").classList.add("hidden");
+    document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden");
 
     updateScoreboardDisplay();
     renderDualMatrixUI();
@@ -189,8 +181,7 @@ function toggleMatrixPlayerRow(teamSide, id, isChecked) {
     let isMatchStarted = (totalBalls > 0 || totalRuns > 0 || totalWickets > 0 || currentInnings === 2);
     if (isMatchStarted) {
         alert("Match has already started! Cannot edit squads mid-match.");
-        renderDualMatrixUI();
-        return;
+        renderDualMatrixUI(); return;
     }
     let targetList = teamSide === 'A' ? teamAPlayers : teamBPlayers;
     let player = targetList.find(p => p.id === id);
@@ -207,7 +198,7 @@ function resetForNextMatchCycle() {
     ballHistory = []; currentInnings = 1;
     firstInningsScore = 0; firstInningsWickets = 0; firstInningsFours = 0;
     currentStrikerName = ""; currentBowlerName = ""; matchEnded = false;
-    inningsTransitionPending = false;
+    inningsTransitionPending = false; matchEndPending = false;
     dynamicBowlerSpells = [];
 
     teamAPlayers.forEach(p => resetPlayerMatchMetrics(p));
@@ -215,12 +206,13 @@ function resetForNextMatchCycle() {
 
     document.getElementById("nextMatchCyclePanel").classList.add("hidden");
     document.getElementById("manualInningsClosurePanel").classList.add("hidden");
+    document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden");
     
     updateScoreboardDisplay();
     renderDualMatrixUI();
     rebuildActiveDropdownOptions();
     broadcastLiveStateToFirebase();
-    alert("Scoreboard reset! You can now adjust squad selections before starting the next match.");
+    alert("Scoreboard reset! Adjust selections if needed before starting Match 2.");
 }
 
 function resetPlayerMatchMetrics(p) {
@@ -262,30 +254,28 @@ function renderSideContainer(containerId, playersList, sideCode) {
         if (p.foursHit > 0 || p.isOut) {
             const badgeColor = p.isOut ? "#dc2626" : "#2563eb";
             const prefixSymbol = p.isOut ? "❌" : "★";
-            foursBadgeHTML = `<span style="background:${badgeColor}; color:#fff; padding:1px 5px; font-size:9px; border-radius:4px; font-weight:bold;">${prefixSymbol} ${p.foursHit} 4s</span>`;
+            foursBadgeHTML = `<span style="background:${badgeColor}; color:#fff; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold;">${prefixSymbol} ${p.foursHit} 4s</span>`;
         }
 
         const controlButtonsHTML = isAdmin ? `
-            <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 3px;">
-                    <div>
-                        <span style="font-size: 13px;">🏏</span>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'dot')" style="padding: 4px 6px; background:#475569; color:#fff; border:none; border-radius:4px; font-size:11px;">Dot</button>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="padding: 4px 6px; background:#2563eb; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">+4</button>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'out-btn')" style="padding: 4px 6px; background:#dc2626; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">OUT</button>
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                    <div style="display: flex; gap: 4px;">
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'dot')" style="background:#475569; color:#fff;">Dot</button>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="background:#2563eb; color:#fff; width: 50px;">+4</button>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'out-btn')" style="background:#dc2626; color:#fff;">OUT</button>
                     </div>
-                    <div>
-                        <span style="font-size: 13px;">🏃</span>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-ball')" style="padding: 4px 5px; background:#334155; color:#94a3b8; border:none; border-radius:4px; font-size:11px;">B (${p.ballsBowled})</button>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wicket')" style="padding: 4px 5px; background:#dc2626; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:bold;">W (${p.wicketsTaken})</button>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-ball')" style="background:#334155; color:#94a3b8;">B (${p.ballsBowled})</button>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wicket')" style="background:#dc2626; color:#fff;">W (${p.wicketsTaken})</button>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; border-top: 1px dashed #334155; padding-top: 4px;">
-                    <div>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wide')" style="padding: 2px 6px; background:#f59e0b; color:#0f172a; border:none; border-radius:4px; font-size:10px; font-weight:bold;">WD (${p.widesBowled || 0})</button>
-                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-noball')" style="padding: 2px 6px; background:#f59e0b; color:#0f172a; border:none; border-radius:4px; font-size:10px; font-weight:bold;">NB (${p.noBallsBowled || 0})</button>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; border-top: 1px dashed #334155; padding-top: 6px;">
+                    <div style="display: flex; gap: 4px;">
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wide')" style="background:#f59e0b; color:#0f172a;">WD (${p.widesBowled || 0})</button>
+                        <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-noball')" style="background:#f59e0b; color:#0f172a;">NB (${p.noBallsBowled || 0})</button>
                     </div>
-                    <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="padding: 3px 8px; background:#10b981; color:#fff; border:none; border-radius:4px; font-size:11px;">Field Pts (${p.fieldingPoints})</button>
+                    <button class="action-trigger" ${disabledAttr} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="background:#10b981; color:#fff;">Field Pts (${p.fieldingPoints})</button>
                 </div>
             </div>
         ` : `
@@ -295,12 +285,12 @@ function renderSideContainer(containerId, playersList, sideCode) {
         `;
 
         html += `
-            <div class="player-matrix-row" style="${bgStyle} padding: 10px; margin-bottom: 6px; border-radius: 8px; border: 1px solid #334155;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <div class="player-matrix-row" style="${bgStyle} padding: 12px; margin-bottom: 8px; border-radius: 10px; border: 1px solid #334155;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        ${isAdmin ? `<input type="checkbox" ${checkedAttr} ${checkboxDisabledAttr} onclick="toggleMatrixPlayerRow('${sideCode}', ${p.id}, this.checked)" style="transform: scale(1.1); cursor: pointer;">` : '🏃'}
-                        <span style="font-weight: bold; font-size: 13px; color: #fff; ${outStyle}">${p.name}</span>
-                        ${p.ballsFaced > 0 && !p.isOut ? `<span style="font-size:10px; color:#94a3b8;">(${p.ballsFaced}b / Ov: ${p.currentOverBalls}b)</span>` : ''}
+                        ${isAdmin ? `<input type="checkbox" ${checkedAttr} ${checkboxDisabledAttr} onclick="toggleMatrixPlayerRow('${sideCode}', ${p.id}, this.checked)" style="transform: scale(1.2); cursor: pointer; margin-right:4px;">` : '🏃'}
+                        <span style="font-weight: bold; font-size: 14px; color: #fff; ${outStyle}">${p.name}</span>
+                        ${p.ballsFaced > 0 && !p.isOut ? `<span style="font-size:11px; color:#94a3b8;">(${p.ballsFaced}b / Ov: ${p.currentOverBalls}b)</span>` : ''}
                     </div>
                     <div style="display: flex; gap: 4px;">
                         ${foursBadgeHTML}
@@ -338,7 +328,6 @@ function rebuildActiveDropdownOptions() {
 }
 
 function changeActiveStriker(name) { currentStrikerName = name; broadcastLiveStateToFirebase(); }
-
 function changeActiveBowler(name) { 
     if (name && name !== currentBowlerName) {
         if (currentBowlerName) {
@@ -353,19 +342,16 @@ function changeActiveBowler(name) {
                     noballs: lastBowlerObj.noBallsBowled || 0,
                     matchId: "match_" + Date.now()
                 });
-                lastBowlerObj.ballsBowled = 0;
-                lastBowlerObj.wicketsTaken = 0;
-                lastBowlerObj.widesBowled = 0;
-                lastBowlerObj.noBallsBowled = 0;
+                lastBowlerObj.ballsBowled = 0; lastBowlerObj.wicketsTaken = 0;
+                lastBowlerObj.widesBowled = 0; lastBowlerObj.noBallsBowled = 0;
             }
         }
     }
-    currentBowlerName = name; 
-    broadcastLiveStateToFirebase(); 
+    currentBowlerName = name; broadcastLiveStateToFirebase(); 
 }
 
 // ==========================================
-// 6. REALTIME MATCH SCORING CONTROLS
+// 6. AUTOMATED DELIVERIES SCORING WORKFLOWS
 // ==========================================
 function executeDirectAction(sideCode, playerId, type) {
     if (matchEnded && type && !['field-point', 'bowl-ball', 'bowl-wicket', 'bowl-wide', 'bowl-noball'].includes(type)) {
@@ -376,19 +362,25 @@ function executeDirectAction(sideCode, playerId, type) {
     let targetPlayer = activePool.find(p => p.id === playerId);
     if (!targetPlayer || !targetPlayer.enabled) return;
 
+    // 2. Automated Bowler Tracking Handlers
+    let bowlingPool = currentInnings === 1 ? teamBPlayers : teamAPlayers;
+    let selectedBowlerObj = bowlingPool.find(p => p.name === currentBowlerName);
+
     if (appSettings.vibrateOnBall && navigator.vibrate) { navigator.vibrate(40); }
 
     ballHistory.push({
         type, side: sideCode, playerId, currentStrikerName, currentBowlerName,
-        totalRuns, totalWickets, totalBalls, currentInnings, totalTeamFours, matchEnded, inningsTransitionPending,
+        totalRuns, totalWickets, totalBalls, currentInnings, totalTeamFours, matchEnded, inningsTransitionPending, matchEndPending,
         teamASnapshot: JSON.stringify(teamAPlayers), teamBSnapshot: JSON.stringify(teamBPlayers),
         spellsSnapshot: JSON.stringify(dynamicBowlerSpells)
     });
 
     if (type === 'dot') {
         targetPlayer.ballsFaced += 1; targetPlayer.currentOverBalls += 1; totalBalls += 1;
+        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; } // Auto-add log
         if (targetPlayer.currentOverBalls >= 6) {
             targetPlayer.isOut = true; totalWickets += 1;
+            if (selectedBowlerObj) { selectedBowlerObj.wicketsTaken += 1; } // Auto-add wicket log
             alert(`Wicket! ${targetPlayer.name} faced 6 balls without hitting a 4 boundary!`);
             currentStrikerName = ""; 
         }
@@ -396,11 +388,13 @@ function executeDirectAction(sideCode, playerId, type) {
     else if (type === 'four') {
         targetPlayer.ballsFaced += 1; targetPlayer.foursHit += 1; totalRuns += 4; totalTeamFours += 1; totalBalls += 1;
         targetPlayer.currentOverBalls = 0; 
+        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; } // Auto-add log
         alert(`🎉 Face-off complete! ${targetPlayer.name} hit a 4!`);
         currentBowlerName = ""; 
     } 
     else if (type === 'out-btn') {
         targetPlayer.isOut = true; totalWickets += 1;
+        if (selectedBowlerObj) { selectedBowlerObj.ballsBowled += 1; selectedBowlerObj.wicketsTaken += 1; } // Auto-add log
         alert(`❌ Wicket logged: ${targetPlayer.name} marked OUT.`);
         if (targetPlayer.name === currentStrikerName) currentStrikerName = "";
     }
@@ -425,12 +419,19 @@ function undoLastBall() {
     currentStrikerName = lastEvent.currentStrikerName; currentBowlerName = lastEvent.currentBowlerName;
     matchEnded = lastEvent.matchEnded || false;
     inningsTransitionPending = lastEvent.inningsTransitionPending || false;
+    matchEndPending = lastEvent.matchEndPending || false;
 
     if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
     else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
 
     if (inningsTransitionPending) { document.getElementById("manualInningsClosurePanel").classList.remove("hidden"); }
     else { document.getElementById("manualInningsClosurePanel").classList.add("hidden"); }
+
+    if (matchEndPending) { document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden"); }
+    else { document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden"); }
+
+    teamAPlayers = JSON.parse(lastEvent.teamASnapshot); teamBPlayers = JSON.parse(lastEvent.teamBSnapshot);
+    dynamicBowlerSpells = JSON.parse(lastEvent.spellsSnapshot || "[]");
 
     updateScoreboardDisplay(); renderDualMatrixUI(); rebuildActiveDropdownOptions();
     broadcastLiveStateToFirebase();
@@ -466,41 +467,39 @@ function updateScoreboardDisplay() {
     if (currentInnings === 1 && totalWickets >= checkedActiveCount && checkedActiveCount > 0 && !inningsTransitionPending) {
         inningsTransitionPending = true;
         document.getElementById("manualInningsClosurePanel").classList.remove("hidden");
-        alert("Notice: Innings limit hit! Review player matrix entries. Tap 'Close & Transition Innings' when verified.");
-    } else if (currentInnings === 2 && !matchEnded) {
+        alert("Notice: 1st Innings completed! Verify table stats and tap Close & Transition Innings.");
+    } else if (currentInnings === 2 && !matchEnded && !matchEndPending) {
+        // 4. Manual 2nd Innings Verification Banner
         if (totalRuns > firstInningsScore) {
-            matchEnded = true; 
-            document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
-            alert("Match Finished! " + currentTeamB + " chased down the total!");
-            saveMatchToHistory(currentTeamB + " won");
+            matchEndPending = true; finalMatchResultText = currentTeamB + " won";
+            document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden");
+            alert("Notice: Target chased down successfully! Verify score entries and tap Close Match.");
         } else if (totalWickets >= checkedActiveCount && checkedActiveCount > 0) {
-            matchEnded = true;
-            document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
-            if (totalRuns === firstInningsScore) { alert("Match Tied!"); saveMatchToHistory("Match Tied"); }
-            else { alert(currentTeamA + " won by defending their total!"); saveMatchToHistory(currentTeamA + " won"); }
+            matchEndPending = true;
+            if (totalRuns === firstInningsScore) { finalMatchResultText = "Match Tied"; }
+            else { finalMatchResultText = currentTeamA + " won"; }
+            document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden");
+            alert("Notice: All batsmen out! Verify score entries and tap Close Match.");
         }
     }
 }
 
 function commitInningsTransitionBreak() {
     if (!isAdmin || !inningsTransitionPending) return;
-    
-    firstInningsScore = totalRuns; 
-    firstInningsWickets = totalWickets; 
-    firstInningsFours = totalTeamFours;
-    
-    currentInnings = 2; 
-    totalRuns = 0; totalWickets = 0; totalBalls = 0; totalTeamFours = 0; 
-    currentStrikerName = ""; currentBowlerName = "";
+    firstInningsScore = totalRuns; firstInningsWickets = totalWickets; firstInningsFours = totalTeamFours;
+    currentInnings = 2; totalRuns = 0; totalWickets = 0; totalBalls = 0; totalTeamFours = 0; currentStrikerName = ""; currentBowlerName = "";
     inningsTransitionPending = false;
-    
     document.getElementById("manualInningsClosurePanel").classList.add("hidden");
-    alert("1st Innings locked. " + currentTeamA + " finishes on " + firstInningsScore + ". Commencing 2nd Innings chase.");
-    
-    renderDualMatrixUI(); 
-    rebuildActiveDropdownOptions();
-    updateScoreboardDisplay();
-    broadcastLiveStateToFirebase();
+    renderDualMatrixUI(); rebuildActiveDropdownOptions(); updateScoreboardDisplay(); broadcastLiveStateToFirebase();
+}
+
+function commitFinalMatchClosureHistory() {
+    if (!isAdmin || !matchEndPending) return;
+    matchEnded = true; matchEndPending = false;
+    document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden");
+    document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
+    saveMatchToHistory(finalMatchResultText);
+    alert(`Match officially verified and stored! Results logged.`);
 }
 
 // ==========================================
@@ -532,10 +531,8 @@ function saveMatchToHistory(resultText = "Match Completed") {
 
         dynamicBowlerSpells.forEach(s => {
             if (s.name === p.name) {
-                cumulativeBalls += s.balls;
-                cumulativeWickets += s.wickets;
-                cumulativeWides += (s.wides || 0);
-                cumulativeNoBalls += (s.noballs || 0);
+                cumulativeBalls += s.balls; cumulativeWickets += s.wickets;
+                cumulativeWides += (s.wides || 0); cumulativeNoBalls += (s.noballs || 0);
                 cumulativeSpellCount += 1;
             }
         });
@@ -566,7 +563,6 @@ function saveMatchToHistory(resultText = "Match Completed") {
     
     matchHistory.unshift(completedMatch);
     localStorage.setItem("ns_match_history", JSON.stringify(matchHistory));
-    
     database.ref("tournament_match_history").set(matchHistory);
     broadcastLiveStateToFirebase();
 }
@@ -643,7 +639,8 @@ function renderMatchHistory() {
 
         if (match.players) {
             match.players.forEach(p => {
-                if (!batsmanMetrics[p.name]) batsmanMetrics[p.name] = { name: p.name, innings: 0, fours: 0, ballsFaced: 0, bestFours: 0, tenPlusMatches: 0 };
+                // 3. Not Out tracking metrics setup
+                if (!batsmanMetrics[p.name]) batsmanMetrics[p.name] = { name: p.name, innings: 0, fours: 0, ballsFaced: 0, bestFours: 0, tenPlusMatches: 0, totalNotOuts: 0 };
                 if (!bowlerMetrics[p.name]) bowlerMetrics[p.name] = { name: p.name, innings: 0, wickets: 0, totalBalls: 0, bestWicketsDay: {}, fiveWicketsMatches: 0 };
                 if (!fielderMetrics[p.name]) fielderMetrics[p.name] = { name: p.name, matches: 0, totalPoints: 0, bestPoints: 0 };
 
@@ -651,6 +648,7 @@ function renderMatchHistory() {
                     batsmanMetrics[p.name].innings += 1;
                     batsmanMetrics[p.name].fours += (p.fours || 0);
                     batsmanMetrics[p.name].ballsFaced += (p.ballsFaced || 0);
+                    if (p.isNotOut) batsmanMetrics[p.name].totalNotOuts += 1; // Unbeaten tally
                     if ((p.fours || 0) > batsmanMetrics[p.name].bestFours) batsmanMetrics[p.name].bestFours = p.fours;
                     if ((p.fours || 0) >= 10) batsmanMetrics[p.name].tenPlusMatches += 1;
                 }
@@ -683,19 +681,18 @@ function renderMatchHistory() {
         <table class="report-table">
             <thead>
                 <tr>
-                    <th style="width:12%;">RK</th>
-                    <th style="width:36%;">PLAYERS</th>
-                    <th style="width:13%;">INN</th>
-                    <th style="width:13%;">4'S</th>
-                    <th style="width:16%;">S.RATE</th>
-                    <th style="width:13%;">B'S</th>
-                    <th style="width:13%;">10'S</th>
+                    <th style="width:10%;">RK</th>
+                    <th style="width:34%;">PLAYERS</th>
+                    <th style="width:12%;">INN</th>
+                    <th style="width:12%;">4'S</th>
+                    <th style="width:12%;">NO</th>
+                    <th style="width:20%;">S.RATE</th>
                 </tr>
             </thead>
             <tbody>
                 ${foursLB.map((p, idx) => {
                     let strikeRate = p.ballsFaced > 0 ? ((p.fours / p.ballsFaced) * 100).toFixed(2) : "0.00";
-                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#2563eb; font-weight:bold;">${p.fours}</td><td>${strikeRate}</td><td>${p.bestFours}</td><td>${p.tenPlusMatches}</td></tr>`;
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#3b82f6; font-weight:bold;">${p.fours}</td><td style="color:#10b981; font-weight:bold;">${p.totalNotOuts}</td><td>${strikeRate}</td></tr>`;
                 }).join('')}
             </tbody>
         </table>
@@ -710,14 +707,13 @@ function renderMatchHistory() {
                     <th style="width:13%;">W'S</th>
                     <th style="width:16%;">AVG</th>
                     <th style="width:13%;">B'S</th>
-                    <th style="width:13%;">5'W</th>
                 </tr>
             </thead>
             <tbody>
                 ${wicketsLB.map((p, idx) => {
                     let avg = p.wickets > 0 ? (p.totalBalls / p.wickets).toFixed(2) : "0.00";
                     let bestDayVal = Object.values(p.bestWicketsDay).length > 0 ? Math.max(...Object.values(p.bestWicketsDay)) : 0;
-                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#ef4444; font-weight:bold;">${p.wickets}</td><td>${avg}</td><td>${bestDayVal}</td><td>${p.fiveWicketsMatches}</td></tr>`;
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#ef4444; font-weight:bold;">${p.wickets}</td><td>${avg}</td><td>${bestDayVal}</td></tr>`;
                 }).join('')}
             </tbody>
         </table>
@@ -730,14 +726,13 @@ function renderMatchHistory() {
                     <th style="width:38%;">PLAYERS</th>
                     <th style="width:14%;">MAT</th>
                     <th style="width:14%;">P'S</th>
-                    <th style="width:14%;">B'S</th>
-                    <th style="width:20%;">EFFICIENCY</th>
+                    <th style="width:32%;">EFFICIENCY</th>
                 </tr>
             </thead>
             <tbody>
                 ${pointsLB.map((p, idx) => {
                     let efficiency = p.matches > 0 ? (p.totalPoints / p.matches).toFixed(2) + "%" : "0.00%";
-                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#34d399; font-weight:bold;">${p.totalPoints}</td><td>${p.bestPoints}</td><td>${efficiency}</td></tr>`;
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#34d399; font-weight:bold;">${p.totalPoints}</td><td>${efficiency}</td></tr>`;
                 }).join('')}
             </tbody>
         </table>
@@ -789,13 +784,16 @@ function startGlobalCloudSyncListener() {
                 firstInningsWickets = data.firstInningsWickets; firstInningsFours = data.firstInningsFours; totalTeamFours = data.totalTeamFours;
                 matchEnded = data.matchEnded; currentStrikerName = data.currentStrikerName; currentBowlerName = data.currentBowlerName;
                 teamAPlayers = data.teamAPlayers; teamBPlayers = data.teamBPlayers; dynamicBowlerSpells = data.dynamicBowlerSpells || [];
-                inningsTransitionPending = data.inningsTransitionPending || false;
+                inningsTransitionPending = data.inningsTransitionPending || false; matchEndPending = data.matchEndPending || false;
 
                 if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
                 else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
 
                 if (inningsTransitionPending) { document.getElementById("manualInningsClosurePanel").classList.remove("hidden"); }
                 else { document.getElementById("manualInningsClosurePanel").classList.add("hidden"); }
+
+                if (matchEndPending) { document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden"); }
+                else { document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden"); }
 
                 hideAllViews();
                 document.getElementById("scoreboard").classList.remove("hidden");
@@ -808,9 +806,6 @@ function startGlobalCloudSyncListener() {
     }
 }
 
-// ==========================================
-// 8. PROGRESSIVE APPLICATION REGISTRATION
-// ==========================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('data:text/javascript,self.addEventListener("fetch",e=>e.respondWith(fetch(e.request)));', {scope: './'})
@@ -819,8 +814,6 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-window.addEventListener('error', function(e) {
-    window.errorsLogged = (window.errorsLogged || "") + "\n" + e.message;
-});
+window.addEventListener('error', function(e) { window.errorsLogged = (window.errorsLogged || "") + "\n" + e.message; });
 
 startGlobalCloudSyncListener();
