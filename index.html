@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewSmashers v4.5</title>
+    <title>NewSmashers v5.0</title>
     <link rel="manifest" href="manifest.json">
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -28,11 +28,12 @@
         input, select { width: 100%; padding: 14px; margin: 8px 0; border: none; border-radius: 12px; font-size: 15px; background: #334155; color: white; }
         input::placeholder { color: #94a3b8; }
         
-        .action-trigger { cursor: pointer; font-size: 13px; font-weight: bold; border: none; border-radius: 8px; transition: transform 0.1s ease; min-height: 38px; padding: 6px 10px; }
+        /* 3. MAXIMUM TOUCH SIZES INCREASED */
+        .action-trigger { cursor: pointer; font-size: 13px; font-weight: bold; border: none; border-radius: 8px; transition: transform 0.1s ease; min-height: 44px; padding: 6px 14px; }
         .action-trigger:active { transform: scale(0.95); }
         .action-trigger:disabled { background: #475569 !important; opacity: 0.4; cursor: not-allowed; }
 
-        .stat-label-box { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 6px 10px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
+        .stat-label-box { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
 
         .report-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 11px; text-align: left; table-layout: fixed; }
         .report-table th, .report-table td { padding: 6px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -89,7 +90,7 @@
             <!-- Next Match Reset Button Panel -->
             <div id="nextMatchCyclePanel" class="card hidden" style="background: #1e3a8a; border: 2px solid #3b82f6; margin-bottom: 15px; padding: 12px; text-align: center;">
                 <p style="font-weight: bold; margin-bottom: 8px; color: #93c5fd;">🏁 MATCH RECORDED SUCCESSFULLY!</p>
-                <button class="menu-btn" style="background: #10b981; padding: 10px; font-size: 14px;" onclick="resetForNextMatchCycle()">🔄 Setup Next Match & Edit Squads</button>
+                <button class="menu-btn" style="background: #10b981; padding: 10px; font-size: 14px;" onclick="resetForNextMatchCycle()">🔄 Setup Next Match (Winner Bats First)</button>
             </div>
 
             <div id="activeMatchupCardPanel" style="background: #0f172a; padding: 12px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #2563eb;">
