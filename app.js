@@ -57,7 +57,7 @@ function stripAdminControlsFromDOM() {
 // 2. MASTER SQUAD DATABASE
 // ==========================================
 const MASTER_ROSTER = [
-    "Abbas", "David", "Gaja", "Karthi Anna", "Karthi S G", 
+    "Abbas", "David", "Gaja", "Karthi anna", "Karthi S G", 
     "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
@@ -83,6 +83,7 @@ let matchEnded = false;
 let inningsTransitionPending = false; 
 let matchEndPending = false; 
 let finalMatchResultText = "";
+let lastWinningTeamName = ""; 
 
 let matchHistory = [];
 try { matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || []; } catch(e) { matchHistory = []; }
@@ -120,7 +121,7 @@ function broadcastLiveStateToFirebase() {
         currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
         currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
         totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
-        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending
+        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending, lastWinningTeamName
     };
     database.ref("live_match_stream").set(dataPayload);
 }
@@ -145,7 +146,7 @@ function createMatch() {
     ballHistory = []; currentInnings = 1;
     firstInningsScore = 0; firstInningsWickets = 0; firstInningsFours = 0;
     currentStrikerName = ""; currentBowlerName = ""; matchEnded = false;
-    inningsTransitionPending = false; matchEndPending = false;
+    inningsTransitionPending = false; matchEndPending = false; lastWinningTeamName = "";
     dynamicBowlerSpells = [];
 
     teamAPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
@@ -191,7 +192,21 @@ function toggleMatrixPlayerRow(teamSide, id, isChecked) {
     }
 }
 
+// 1. DYNAMIC ROTATION ON NEXT MATCH CYCLE KEY
 function resetForNextMatchCycle() {
+    // If Team B was the winner, swap them into Team A position so they bat first
+    if (lastWinningTeamName === currentTeamB) {
+        let tempTeamName = currentTeamA;
+        currentTeamA = currentTeamB;
+        currentTeamB = tempTeamName;
+        
+        // Swap squad profiles to stay aligned with new positions
+        let tempSquad = teamAPlayers;
+        teamAPlayers = teamBPlayers;
+        teamBPlayers = tempSquad;
+    } 
+    // If Team A won, they are already in the batting first spot, so squads maintain orientation
+
     totalRuns = 0; totalWickets = 0; totalBalls = 0; totalTeamFours = 0;
     ballHistory = []; currentInnings = 1;
     firstInningsScore = 0; firstInningsWickets = 0; firstInningsFours = 0;
@@ -202,6 +217,9 @@ function resetForNextMatchCycle() {
     teamAPlayers.forEach(p => resetPlayerMatchMetrics(p));
     teamBPlayers.forEach(p => resetPlayerMatchMetrics(p));
 
+    document.getElementById("teamAHeaderBanner").firstChild.textContent = currentTeamA + " SQUAD SHEET ";
+    document.getElementById("teamBHeaderBanner").firstChild.textContent = currentTeamB + " SQUAD SHEET ";
+
     document.getElementById("nextMatchCyclePanel").classList.add("hidden");
     document.getElementById("manualInningsClosurePanel").classList.add("hidden");
     document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden");
@@ -210,7 +228,7 @@ function resetForNextMatchCycle() {
     renderDualMatrixUI();
     rebuildActiveDropdownOptions();
     broadcastLiveStateToFirebase();
-    alert("Scoreboard reset! Adjust selections if needed before starting Match 2.");
+    alert(`Rotation Complete! Winning team (${currentTeamA}) is set to bat first.`);
 }
 
 function resetPlayerMatchMetrics(p) {
@@ -254,36 +272,35 @@ function renderSideContainer(containerId, playersList, sideCode) {
             foursBadgeHTML = `<span style="background:${badgeColor}; color:#fff; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold;">${prefixSymbol} ${p.foursHit} 4s</span>`;
         }
 
-        // VALIDATION CHECK: Buttons strictly disable unless names match chosen options
         const isFaceoffActive = (currentStrikerName !== "" && currentBowlerName !== "");
         const isActionDisabled = (!p.enabled || !isFaceoffActive || p.name !== currentStrikerName) ? "disabled" : "";
         const isExtraDisabled = (!p.enabled || !isFaceoffActive) ? "disabled" : "";
 
+        // 2. FIELD BUTTON CHANGED TO PURPLE COLOR FOR HIGHER CLARITY
         const controlButtonsHTML = isAdmin ? `
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
-                    <div style="display: flex; gap: 4px;">
+                    <div style="display: flex; gap: 6px;">
                         <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'dot')" style="background:#475569; color:#fff;">Dot</button>
-                        <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="background:#2563eb; color:#fff; width: 50px;">+4</button>
+                        <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="background:#2563eb; color:#fff; width: 55px;">+4</button>
                         <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'out-btn')" style="background:#dc2626; color:#fff;">OUT</button>
                     </div>
-                    <!-- CHANGED: Buttons turned into clean display text lables -->
                     <div style="display: flex; gap: 4px;">
                         <span class="stat-label-box">B: ${p.ballsBowled}</span>
                         <span class="stat-label-box" style="border-color: #dc2626; color: #fca5a5;">W: ${p.wicketsTaken}</span>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; border-top: 1px dashed #334155; padding-top: 6px;">
-                    <div style="display: flex; gap: 4px;">
+                    <div style="display: flex; gap: 6px;">
                         <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wide')" style="background:#f59e0b; color:#0f172a;">WD (${p.widesBowled || 0})</button>
                         <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-noball')" style="background:#f59e0b; color:#0f172a;">NB (${p.noBallsBowled || 0})</button>
                     </div>
-                    <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="background:#10b981; color:#fff;">Field Pts (${p.fieldingPoints})</button>
+                    <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="background:#a855f7; color:#fff;">Field Pts (${p.fieldingPoints})</button>
                 </div>
             </div>
         ` : `
             <div style="font-size:11px; color:#94a3b8; width: 100%;">
-                Bowling: <b>B: ${p.ballsBowled} | W: ${p.wicketsTaken}</b> | Extras: <b>WD:${p.widesBowled || 0} NB:${p.noBallsBowled || 0}</b> | Fielding: <b style="color:#10b981;">${p.fieldingPoints} Pts</b>
+                Bowling: <b>B: ${p.ballsBowled} | W: ${p.wicketsTaken}</b> | Extras: <b>WD:${p.widesBowled || 0} NB:${p.noBallsBowled || 0}</b> | Fielding: <b style="color:#a855f7;">${p.fieldingPoints} Pts</b>
             </div>
         `;
 
@@ -331,11 +348,8 @@ function rebuildActiveDropdownOptions() {
 }
 
 function changeActiveStriker(name) { 
-    currentStrikerName = name; 
-    renderDualMatrixUI(); // Refresh state immediately to enable buttons
-    broadcastLiveStateToFirebase(); 
+    currentStrikerName = name; renderDualMatrixUI(); broadcastLiveStateToFirebase(); 
 }
-
 function changeActiveBowler(name) { 
     if (name && name !== currentBowlerName) {
         if (currentBowlerName) {
@@ -355,9 +369,7 @@ function changeActiveBowler(name) {
             }
         }
     }
-    currentBowlerName = name; 
-    renderDualMatrixUI(); // Refresh state immediately to enable buttons
-    broadcastLiveStateToFirebase(); 
+    currentBowlerName = name; renderDualMatrixUI(); broadcastLiveStateToFirebase(); 
 }
 
 // ==========================================
@@ -379,7 +391,7 @@ function executeDirectAction(sideCode, playerId, type) {
 
     ballHistory.push({
         type, side: sideCode, playerId, currentStrikerName, currentBowlerName,
-        totalRuns, totalWickets, totalBalls, currentInnings, totalTeamFours, matchEnded, inningsTransitionPending, matchEndPending,
+        totalRuns, totalWickets, totalBalls, currentInnings, totalTeamFours, matchEnded, inningsTransitionPending, matchEndPending, lastWinningTeamName,
         teamASnapshot: JSON.stringify(teamAPlayers), teamBSnapshot: JSON.stringify(teamBPlayers),
         spellsSnapshot: JSON.stringify(dynamicBowlerSpells)
     });
@@ -427,6 +439,7 @@ function undoLastBall() {
     matchEnded = lastEvent.matchEnded || false;
     inningsTransitionPending = lastEvent.inningsTransitionPending || false;
     matchEndPending = lastEvent.matchEndPending || false;
+    lastWinningTeamName = lastEvent.lastWinningTeamName || "";
 
     if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
     else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
@@ -477,13 +490,13 @@ function updateScoreboardDisplay() {
         alert("Notice: 1st Innings completed! Verify table stats and tap Close & Transition Innings.");
     } else if (currentInnings === 2 && !matchEnded && !matchEndPending) {
         if (totalRuns > firstInningsScore) {
-            matchEndPending = true; finalMatchResultText = currentTeamB + " won";
+            matchEndPending = true; finalMatchResultText = currentTeamB + " won"; lastWinningTeamName = currentTeamB;
             document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden");
             alert("Notice: Target chased down successfully! Verify score entries and tap Close Match.");
         } else if (totalWickets >= checkedActiveCount && checkedActiveCount > 0) {
             matchEndPending = true;
-            if (totalRuns === firstInningsScore) { finalMatchResultText = "Match Tied"; }
-            else { finalMatchResultText = currentTeamA + " won"; }
+            if (totalRuns === firstInningsScore) { finalMatchResultText = "Match Tied"; lastWinningTeamName = ""; }
+            else { finalMatchResultText = currentTeamA + " won"; lastWinningTeamName = currentTeamA; }
             document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden");
             alert("Notice: All batsmen out! Verify score entries and tap Close Match.");
         }
@@ -789,7 +802,7 @@ function startGlobalCloudSyncListener() {
                 firstInningsWickets = data.firstInningsWickets; firstInningsFours = data.firstInningsFours; totalTeamFours = data.totalTeamFours;
                 matchEnded = data.matchEnded; currentStrikerName = data.currentStrikerName; currentBowlerName = data.currentBowlerName;
                 teamAPlayers = data.teamAPlayers; teamBPlayers = data.teamBPlayers; dynamicBowlerSpells = data.dynamicBowlerSpells || [];
-                inningsTransitionPending = data.inningsTransitionPending || false; matchEndPending = data.matchEndPending || false;
+                inningsTransitionPending = data.inningsTransitionPending || false; matchEndPending = data.matchEndPending || false; lastWinningTeamName = data.lastWinningTeamName || "";
 
                 if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
                 else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
@@ -799,6 +812,9 @@ function startGlobalCloudSyncListener() {
 
                 if (matchEndPending) { document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden"); }
                 else { document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden"); }
+
+                document.getElementById("teamAHeaderBanner").firstChild.textContent = currentTeamA + " SQUAD SHEET ";
+                document.getElementById("teamBHeaderBanner").firstChild.textContent = currentTeamB + " SQUAD SHEET ";
 
                 hideAllViews();
                 document.getElementById("scoreboard").classList.remove("hidden");
