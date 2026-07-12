@@ -15,6 +15,16 @@ firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
 let isAdmin = false;
+let isMatchActiveShieldEnabled = false; // Page refresh blocker tracker state variable
+
+// ANTI-REFRESH INTERCEPT ENGINE ACTIVATION
+window.addEventListener("beforeunload", function (e) {
+    if (isMatchActiveShieldEnabled) {
+        let confirmationMessage = "⚠️ Warning: Active Match in Progress! Reloading will wipe the live scorecard data. Are you sure?";
+        (e || window.event).returnValue = confirmationMessage; 
+        return confirmationMessage; 
+    }
+});
 
 function checkUserRolePermissions() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -57,7 +67,7 @@ function stripAdminControlsFromDOM() {
 // 2. MASTER SQUAD DATABASE
 // ==========================================
 const MASTER_ROSTER = [
-    "Abbas", "David", "Gaja", "Karthi anna", "Karthi S G", 
+    "Abbas", "David", "Gaja", "Karthi Anna", "Karthi S G", 
     "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
@@ -121,7 +131,7 @@ function broadcastLiveStateToFirebase() {
         currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
         currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
         totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
-        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending, lastWinningTeamName
+        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending, lastWinningTeamName, isMatchActiveShieldEnabled
     };
     database.ref("live_match_stream").set(dataPayload);
 }
@@ -140,6 +150,9 @@ function createMatch() {
     if (teamA === "" || teamB === "") {
         alert("Please fill all fields correctly"); return;
     }
+
+    // LOCK REFRESH IMMEDIATELY UPON CREATION
+    isMatchActiveShieldEnabled = true;
 
     currentTeamA = teamA; currentTeamB = teamB;
     totalRuns = 0; totalWickets = 0; totalBalls = 0; totalTeamFours = 0;
@@ -192,20 +205,14 @@ function toggleMatrixPlayerRow(teamSide, id, isChecked) {
     }
 }
 
-// 1. DYNAMIC ROTATION ON NEXT MATCH CYCLE KEY
 function resetForNextMatchCycle() {
-    // If Team B was the winner, swap them into Team A position so they bat first
+    // LOCK SHIELD RE-ENGAGED FOR NEXT MATCH 
+    isMatchActiveShieldEnabled = true;
+
     if (lastWinningTeamName === currentTeamB) {
-        let tempTeamName = currentTeamA;
-        currentTeamA = currentTeamB;
-        currentTeamB = tempTeamName;
-        
-        // Swap squad profiles to stay aligned with new positions
-        let tempSquad = teamAPlayers;
-        teamAPlayers = teamBPlayers;
-        teamBPlayers = tempSquad;
+        let tempTeamName = currentTeamA; currentTeamA = currentTeamB; currentTeamB = tempTeamName;
+        let tempSquad = teamAPlayers; teamAPlayers = teamBPlayers; teamBPlayers = tempSquad;
     } 
-    // If Team A won, they are already in the batting first spot, so squads maintain orientation
 
     totalRuns = 0; totalWickets = 0; totalBalls = 0; totalTeamFours = 0;
     ballHistory = []; currentInnings = 1;
@@ -276,7 +283,6 @@ function renderSideContainer(containerId, playersList, sideCode) {
         const isActionDisabled = (!p.enabled || !isFaceoffActive || p.name !== currentStrikerName) ? "disabled" : "";
         const isExtraDisabled = (!p.enabled || !isFaceoffActive) ? "disabled" : "";
 
-        // 2. FIELD BUTTON CHANGED TO PURPLE COLOR FOR HIGHER CLARITY
         const controlButtonsHTML = isAdmin ? `
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
@@ -347,9 +353,7 @@ function rebuildActiveDropdownOptions() {
     bowlSelect.innerHTML = bowlHtml;
 }
 
-function changeActiveStriker(name) { 
-    currentStrikerName = name; renderDualMatrixUI(); broadcastLiveStateToFirebase(); 
-}
+function changeActiveStriker(name) { currentStrikerName = name; renderDualMatrixUI(); broadcastLiveStateToFirebase(); }
 function changeActiveBowler(name) { 
     if (name && name !== currentBowlerName) {
         if (currentBowlerName) {
@@ -457,21 +461,6 @@ function undoLastBall() {
     broadcastLiveStateToFirebase();
 }
 
-function calculateDailySeriesWins() {
-    let today = new Date();
-    let currentY = today.getFullYear(); let currentM = today.getMonth() + 1; let currentD = today.getDate();
-    let winA = 0, winB = 0;
-
-    matchHistory.forEach(match => {
-        let d = match.timestamp ? new Date(match.timestamp) : new Date(parseInt(match.id.replace("match_", "")));
-        if (d && !isNaN(d.getTime()) && d.getFullYear() === currentY && (d.getMonth() + 1) === currentM && d.getDate() === currentD) {
-            if (match.result && match.result.includes(currentTeamA)) winA++;
-            if (match.result && match.result.includes(currentTeamB)) winB++;
-        }
-    });
-    return { winA, winB };
-}
-
 function updateScoreboardDisplay() {
     let currentBattingPool = currentInnings === 1 ? teamAPlayers : teamBPlayers;
     let checkedActiveCount = currentBattingPool.filter(p => p.enabled).length || 10;
@@ -515,6 +504,10 @@ function commitInningsTransitionBreak() {
 function commitFinalMatchClosureHistory() {
     if (!isAdmin || !matchEndPending) return;
     matchEnded = true; matchEndPending = false;
+    
+    // DISABLE SHIELD WHEN MATCH CLOSES TO ALLOW SAFE RELOADING
+    isMatchActiveShieldEnabled = false;
+
     document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden");
     document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
     saveMatchToHistory(finalMatchResultText);
@@ -586,41 +579,34 @@ function saveMatchToHistory(resultText = "Match Completed") {
     broadcastLiveStateToFirebase();
 }
 
-function shareAccumulatedStatsToWhatsApp() {
+// NATIVE HIGH-CONTRAST PNG RENDERING LOGIC HUB
+function exportStandingsHubToPNGImage() {
+    const element = document.getElementById("snapshotCaptureOuterWrapper");
+    if (!element) return;
+
     let filterScope = document.getElementById("leaderboardFilterScope").value;
-    let headingTitle = "OVERALL STATUS SUMMARY";
-    if (filterScope === "date") headingTitle = "SUMMARY REPORT FOR [" + (document.getElementById("filterSpecificDate").value || 'SELECTED DATE') + "]";
-    if (filterScope === "month") headingTitle = "SUMMARY REPORT FOR MONTH CODE: " + document.getElementById("filterSpecificMonth").value;
+    let scopeName = "OVERALL STATUS SUMMARY";
+    if (filterScope === "date") scopeName = "SUMMARY FOR [" + (document.getElementById("filterSpecificDate").value || "SELECTED DATE") + "]";
+    if (filterScope === "month") scopeName = "SUMMARY FOR MONTH CODE [" + document.getElementById("filterSpecificMonth").value + "]";
 
-    let textReport = "📊 *NewSmashers Leaderboard Report* 📊\n";
-    textReport += "📅 Scope: *" + headingTitle + "*\n";
-    textReport += "═══════════════════════\n\n";
+    alert("Generating image card report for full roster list... Please wait 2 seconds.");
 
-    const tables = document.querySelectorAll("#historyListContainer table");
-    const titles = document.querySelectorAll("#historyListContainer .report-title");
-
-    if (tables.length === 0) {
-        alert("No tournament stats found for this filter scope to share!"); return;
-    }
-
-    titles.forEach((titleEl, idx) => {
-        textReport += "*" + titleEl.innerText + "*\n";
-        const rows = tables[idx].querySelectorAll("tbody tr");
-        rows.forEach(row => {
-            const cols = row.querySelectorAll("td");
-            if (cols.length >= 4) {
-                const rank = cols[0].innerText;
-                const pName = cols[1].innerText;
-                const inn = cols[2].innerText;
-                const statVal = cols[3].innerText;
-                textReport += " " + rank + ". *" + pName + "* (Inn:" + inn + ") ➜ *" + statVal + "*\n";
-            }
-        });
-        textReport += "\n";
+    html2canvas(element, {
+        backgroundColor: "#0f172a", // Strict dark-blue background setup matching image layout templates
+        scale: 2, // Double dimension clarity ratio for perfect mobile zooming
+        logging: false,
+        useCORS: true
+    }).then(canvas => {
+        const imageURI = canvas.toDataURL("image/png");
+        const downloadAnchor = document.createElement("a");
+        downloadAnchor.href = imageURI;
+        downloadAnchor.download = "NewSmashers_" + scopeName.replace(/[^a-zA-Z0-9]/g, "_") + ".png";
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        document.body.removeChild(downloadAnchor);
+    }).catch(err => {
+        alert("Snapshot generation failed: " + err);
     });
-
-    const encodedText = encodeURIComponent(textReport);
-    window.open("https://api.whatsapp.com/send?text=" + encodedText, '_blank');
 }
 
 function renderMatchHistory() {
@@ -692,69 +678,69 @@ function renderMatchHistory() {
     let wicketsLB = Object.values(bowlerMetrics).filter(p => p.innings > 0 || p.wickets > 0).sort((a,b) => b.wickets - a.wickets);
     let pointsLB = Object.values(fielderMetrics).filter(p => p.matches > 0).sort((a,b) => b.totalPoints - a.totalPoints);
 
-    let html = `<div class="accumulated-leaderboards-card" style="background: #0f172a; padding: 10px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #f59e0b;">
-        <h3 style="color:#f59e0b; text-align:center; text-transform:uppercase; font-size:14px; margin-bottom:10px;">🏆 ACCUMULATED STANDINGS HUB 🏆</h3>
+    let headingTitleText = "OVERALL STATUS SUMMARY";
+    if (filterScope === "date") headingTitleText = "SUMMARY FOR [" + (document.getElementById("filterSpecificDate").value || 'SELECTED DATE') + "]";
+    if (filterScope === "month") headingTitleText = "SUMMARY FOR MONTH CODE: " + document.getElementById("filterSpecificMonth").value;
+
+    let html = `<div class="snapshot-target-card">
+        <h3 style="color:#f59e0b; text-align:center; text-transform:uppercase; font-size:14px; margin-bottom:5px; border-bottom: 1px dashed #334155; padding-bottom:8px;">🏆 ACCUMULATED STANDINGS HUB 🏆</h3>
+        <div style="font-size:11px; text-align:center; color:#94a3b8; font-weight:bold; margin-bottom:12px;">📅 ${headingTitleText}</div>
         
-        <div class="report-title">🏏 OVERALL MOST FOURS RANKING</div>
+        <div class="report-title">🏏 MOST FOURS RANKING</div>
         <table class="report-table">
             <thead>
                 <tr>
-                    <th style="width:10%;">RK</th>
+                    <th style="width:12%;">RK</th>
                     <th style="width:34%;">PLAYERS</th>
-                    <th style="width:12%;">INN</th>
-                    <th style="width:12%;">4'S</th>
-                    <th style="width:12%;">NO</th>
-                    <th style="width:20%;">S.RATE</th>
+                    <th style="width:13%;">INN</th>
+                    <th style="width:13%;">4'S</th>
+                    <th style="width:13%;">NO</th>
+                    <th style="width:15%;">S.R</th>
                 </tr>
             </thead>
             <tbody>
                 ${foursLB.map((p, idx) => {
-                    let strikeRate = p.ballsFaced > 0 ? ((p.fours / p.ballsFaced) * 100).toFixed(2) : "0.00";
-                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#3b82f6; font-weight:bold;">${p.fours}</td><td style="color:#10b981; font-weight:bold;">${p.totalNotOuts}</td><td>${strikeRate}</td></tr>`;
+                    let strikeRate = p.ballsFaced > 0 ? ((p.fours / p.ballsFaced) * 100).toFixed(0) : "0";
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#3b82f6; font-weight:bold;">${p.fours}</td><td style="color:#10b981; font-weight:bold;">${p.totalNotOuts}</td><td>${strikeRate}%</td></tr>`;
                 }).join('')}
             </tbody>
         </table>
 
-        <div class="report-title">🏃 OVERALL MOST WICKETS RANKING</div>
+        <div class="report-title">🏃 MOST WICKETS RANKING</div>
         <table class="report-table">
             <thead>
                 <tr>
                     <th style="width:12%;">RK</th>
                     <th style="width:36%;">PLAYERS</th>
-                    <th style="width:13%;">INN</th>
-                    <th style="width:13%;">W'S</th>
-                    <th style="width:16%;">AVG</th>
-                    <th style="width:13%;">B'S</th>
+                    <th style="width:14%;">INN</th>
+                    <th style="width:14%;">W'S</th>
+                    <th style="width:24%;">BALLS BOWLED</th>
                 </tr>
             </thead>
             <tbody>
                 ${wicketsLB.map((p, idx) => {
-                    let avg = p.wickets > 0 ? (p.totalBalls / p.wickets).toFixed(2) : "0.00";
-                    let bestDayVal = Object.values(p.bestWicketsDay).length > 0 ? Math.max(...Object.values(p.bestWicketsDay)) : 0;
-                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#ef4444; font-weight:bold;">${p.wickets}</td><td>${avg}</td><td>${bestDayVal}</td></tr>`;
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.innings}</td><td style="color:#ef4444; font-weight:bold;">${p.wickets}</td><td>${p.totalBalls}b</td></tr>`;
                 }).join('')}
             </tbody>
         </table>
 
-        <div class="report-title">🧤 OVERALL MOST F'POINTS RANKING</div>
+        <div class="report-title">🧤 MOST FIELDING POINTS RANKING</div>
         <table class="report-table">
             <thead>
                 <tr>
                     <th style="width:12%;">RK</th>
-                    <th style="width:38%;">PLAYERS</th>
-                    <th style="width:14%;">MAT</th>
-                    <th style="width:14%;">P'S</th>
-                    <th style="width:32%;">EFFICIENCY</th>
+                    <th style="width:40%;">PLAYERS</th>
+                    <th style="width:16%;">MAT</th>
+                    <th style="width:32%;">TOTAL P'S</th>
                 </tr>
             </thead>
             <tbody>
                 ${pointsLB.map((p, idx) => {
-                    let efficiency = p.matches > 0 ? (p.totalPoints / p.matches).toFixed(2) + "%" : "0.00%";
-                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#34d399; font-weight:bold;">${p.totalPoints}</td><td>${efficiency}</td></tr>`;
+                    return `<tr><td>${idx+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#a855f7; font-weight:bold;">${p.totalPoints} Pts</td></tr>`;
                 }).join('')}
             </tbody>
         </table>
-    </div><h4 style="color:#94a3b8; font-size:12px; text-transform:uppercase; margin-bottom:10px;">📋 Individual Match Log Breakdown</h4>`;
+    </div><h4 style="color:#94a3b8; font-size:12px; text-transform:uppercase; margin-bottom:10px; margin-top:20px;">📋 Individual Match Breakdown Logs</h4>`;
 
     filteredMatches.forEach(match => {
         html += `<div class="match-history-card" style="background:#223047; padding:12px; margin-bottom:12px; border-radius:8px; border: 1px solid #334155; font-size:13px;">
@@ -802,7 +788,8 @@ function startGlobalCloudSyncListener() {
                 firstInningsWickets = data.firstInningsWickets; firstInningsFours = data.firstInningsFours; totalTeamFours = data.totalTeamFours;
                 matchEnded = data.matchEnded; currentStrikerName = data.currentStrikerName; currentBowlerName = data.currentBowlerName;
                 teamAPlayers = data.teamAPlayers; teamBPlayers = data.teamBPlayers; dynamicBowlerSpells = data.dynamicBowlerSpells || [];
-                inningsTransitionPending = data.inningsTransitionPending || false; matchEndPending = data.matchEndPending || false; lastWinningTeamName = data.lastWinningTeamName || "";
+                inningsTransitionPending = data.inningsTransitionPending || false; matchEndPending = data.matchEndPending || false; 
+                lastWinningTeamName = data.lastWinningTeamName || ""; isMatchActiveShieldEnabled = data.isMatchActiveShieldEnabled || false;
 
                 if (matchEnded) { document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); } 
                 else { document.getElementById("nextMatchCyclePanel").classList.add("hidden"); }
@@ -835,6 +822,5 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-window.addEventListener('error', function(e) { window.errorsLogged = (window.errorsLogged || "") + "\n" + e.message; });
-
 startGlobalCloudSyncListener();
+
