@@ -15,9 +15,8 @@ firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
 let isAdmin = false;
-let isMatchActiveShieldEnabled = false; // Page refresh blocker tracker state variable
+let isMatchActiveShieldEnabled = false; 
 
-// ANTI-REFRESH INTERCEPT ENGINE ACTIVATION
 window.addEventListener("beforeunload", function (e) {
     if (isMatchActiveShieldEnabled) {
         let confirmationMessage = "⚠️ Warning: Active Match in Progress! Reloading will wipe the live scorecard data. Are you sure?";
@@ -151,7 +150,6 @@ function createMatch() {
         alert("Please fill all fields correctly"); return;
     }
 
-    // LOCK REFRESH IMMEDIATELY UPON CREATION
     isMatchActiveShieldEnabled = true;
 
     currentTeamA = teamA; currentTeamB = teamB;
@@ -165,8 +163,10 @@ function createMatch() {
     teamAPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
     teamBPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
 
-    document.getElementById("teamAHeaderBanner").firstChild.textContent = teamA + " SQUAD SHEET ";
-    document.getElementById("teamBHeaderBanner").firstChild.textContent = teamB + " SQUAD SHEET ";
+    // FIXED: Safely targeting direct explicit inner text element selectors
+    document.getElementById("teamAHeaderText").innerText = teamA + " SQUAD SHEET";
+    document.getElementById("teamBHeaderText").innerText = teamB + " SQUAD SHEET";
+    
     document.getElementById("nextMatchCyclePanel").classList.add("hidden");
     document.getElementById("manualInningsClosurePanel").classList.add("hidden");
     document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden");
@@ -206,7 +206,6 @@ function toggleMatrixPlayerRow(teamSide, id, isChecked) {
 }
 
 function resetForNextMatchCycle() {
-    // LOCK SHIELD RE-ENGAGED FOR NEXT MATCH 
     isMatchActiveShieldEnabled = true;
 
     if (lastWinningTeamName === currentTeamB) {
@@ -224,8 +223,8 @@ function resetForNextMatchCycle() {
     teamAPlayers.forEach(p => resetPlayerMatchMetrics(p));
     teamBPlayers.forEach(p => resetPlayerMatchMetrics(p));
 
-    document.getElementById("teamAHeaderBanner").firstChild.textContent = currentTeamA + " SQUAD SHEET ";
-    document.getElementById("teamBHeaderBanner").firstChild.textContent = currentTeamB + " SQUAD SHEET ";
+    document.getElementById("teamAHeaderText").innerText = currentTeamA + " SQUAD SHEET";
+    document.getElementById("teamBHeaderText").innerText = currentTeamB + " SQUAD SHEET";
 
     document.getElementById("nextMatchCyclePanel").classList.add("hidden");
     document.getElementById("manualInningsClosurePanel").classList.add("hidden");
@@ -461,6 +460,33 @@ function undoLastBall() {
     broadcastLiveStateToFirebase();
 }
 
+// FIXED: Protected inside strict error handling try-catch layer to block crashing on older records
+function calculateDailySeriesWins() {
+    let today = new Date();
+    let currentY = today.getFullYear(); let currentM = today.getMonth() + 1; let currentD = today.getDate();
+    let winA = 0, winB = 0;
+
+    try {
+        matchHistory.forEach(match => {
+            if (!match) return;
+            let d = null;
+            if (match.timestamp) {
+                d = new Date(match.timestamp);
+            } else if (match.id && typeof match.id === "string") {
+                d = new Date(parseInt(match.id.replace("match_", "")));
+            }
+            
+            if (d && !isNaN(d.getTime()) && d.getFullYear() === currentY && (d.getMonth() + 1) === currentM && d.getDate() === currentD) {
+                if (match.result && match.result.includes(currentTeamA)) winA++;
+                if (match.result && match.result.includes(currentTeamB)) winB++;
+            }
+        });
+    } catch (err) {
+        console.log("Wins tally scanner handled an older log layout safely:", err);
+    }
+    return { winA, winB };
+}
+
 function updateScoreboardDisplay() {
     let currentBattingPool = currentInnings === 1 ? teamAPlayers : teamBPlayers;
     let checkedActiveCount = currentBattingPool.filter(p => p.enabled).length || 10;
@@ -504,9 +530,7 @@ function commitInningsTransitionBreak() {
 function commitFinalMatchClosureHistory() {
     if (!isAdmin || !matchEndPending) return;
     matchEnded = true; matchEndPending = false;
-    
-    // DISABLE SHIELD WHEN MATCH CLOSES TO ALLOW SAFE RELOADING
-    isMatchActiveShieldEnabled = false;
+    isMatchActiveShieldEnabled = false; 
 
     document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden");
     document.getElementById("nextMatchCyclePanel").classList.remove("hidden");
@@ -579,7 +603,6 @@ function saveMatchToHistory(resultText = "Match Completed") {
     broadcastLiveStateToFirebase();
 }
 
-// NATIVE HIGH-CONTRAST PNG RENDERING LOGIC HUB
 function exportStandingsHubToPNGImage() {
     const element = document.getElementById("snapshotCaptureOuterWrapper");
     if (!element) return;
@@ -592,8 +615,8 @@ function exportStandingsHubToPNGImage() {
     alert("Generating image card report for full roster list... Please wait 2 seconds.");
 
     html2canvas(element, {
-        backgroundColor: "#0f172a", // Strict dark-blue background setup matching image layout templates
-        scale: 2, // Double dimension clarity ratio for perfect mobile zooming
+        backgroundColor: "#0f172a", 
+        scale: 2, 
         logging: false,
         useCORS: true
     }).then(canvas => {
@@ -800,8 +823,8 @@ function startGlobalCloudSyncListener() {
                 if (matchEndPending) { document.getElementById("manualMatchEndVerificationPanel").classList.remove("hidden"); }
                 else { document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden"); }
 
-                document.getElementById("teamAHeaderBanner").firstChild.textContent = currentTeamA + " SQUAD SHEET ";
-                document.getElementById("teamBHeaderBanner").firstChild.textContent = currentTeamB + " SQUAD SHEET ";
+                document.getElementById("teamAHeaderText").innerText = currentTeamA + " SQUAD SHEET";
+                document.getElementById("teamBHeaderText").innerText = currentTeamB + " SQUAD SHEET";
 
                 hideAllViews();
                 document.getElementById("scoreboard").classList.remove("hidden");
@@ -823,4 +846,3 @@ if ('serviceWorker' in navigator) {
 }
 
 startGlobalCloudSyncListener();
-
