@@ -119,22 +119,6 @@ function showMatchHistory() {
 
 function showSettings() { hideAllViews(); document.getElementById("settingsView").classList.remove("hidden"); loadSettingsUI(); }
 
-function hideAllViews() {
-    const views = ["mainMenu", "matchForm", "scoreboard", "matchHistoryView", "settingsView"];
-    views.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
-}
-
-function broadcastLiveStateToFirebase() {
-    if (!isAdmin) return; 
-    const dataPayload = {
-        currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
-        currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
-        totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
-        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending, lastWinningTeamName, isMatchActiveShieldEnabled
-    };
-    database.ref("live_match_stream").set(dataPayload);
-}
-
 // ==========================================
 // 4. MATCH INITIALIZATION ENGINE
 // ==========================================
@@ -143,8 +127,8 @@ function createMatch() {
     let teamBInput = document.getElementById("teamB");
     if (!teamAInput || !teamBInput) return;
     
-    let teamA = teamAInput.value.trim();
-    let teamB = teamBInput.value.trim();
+    let teamA = teamAInput.value.trim().toUpperCase();
+    let teamB = teamBInput.value.trim().toUpperCase();
 
     if (teamA === "" || teamB === "") {
         alert("Please fill all fields correctly"); return;
@@ -163,7 +147,6 @@ function createMatch() {
     teamAPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
     teamBPlayers = MASTER_ROSTER.map((name, index) => createPlayerObject(index, name));
 
-    // FIXED: Safely targeting direct explicit inner text element selectors
     document.getElementById("teamAHeaderText").innerText = teamA + " SQUAD SHEET";
     document.getElementById("teamBHeaderText").innerText = teamB + " SQUAD SHEET";
     
@@ -234,13 +217,33 @@ function resetForNextMatchCycle() {
     renderDualMatrixUI();
     rebuildActiveDropdownOptions();
     broadcastLiveStateToFirebase();
-    alert(`Rotation Complete! Winning team (${currentTeamA}) is set to bat first.`);
 }
 
 function resetPlayerMatchMetrics(p) {
     p.ballsFaced = 0; p.currentOverBalls = 0; p.foursHit = 0; p.isOut = false;
     p.ballsBowled = 0; p.wicketsTaken = 0; p.fieldingPoints = 0;
     p.widesBowled = 0; p.noBallsBowled = 0;
+}
+
+function hideAllViews() {
+    const views = ["mainMenu", "matchForm", "scoreboard", "matchHistoryView", "settingsView"];
+    views.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
+}
+
+function hideAllViews() {
+    const views = ["mainMenu", "matchForm", "scoreboard", "matchHistoryView", "settingsView"];
+    views.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
+}
+
+function broadcastLiveStateToFirebase() {
+    if (!isAdmin) return; 
+    const dataPayload = {
+        currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
+        currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
+        totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
+        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending, lastWinningTeamName
+    };
+    database.ref("live_match_stream").set(dataPayload);
 }
 
 // ==========================================
@@ -460,7 +463,6 @@ function undoLastBall() {
     broadcastLiveStateToFirebase();
 }
 
-// FIXED: Protected inside strict error handling try-catch layer to block crashing on older records
 function calculateDailySeriesWins() {
     let today = new Date();
     let currentY = today.getFullYear(); let currentM = today.getMonth() + 1; let currentD = today.getDate();
@@ -477,32 +479,50 @@ function calculateDailySeriesWins() {
             }
             
             if (d && !isNaN(d.getTime()) && d.getFullYear() === currentY && (d.getMonth() + 1) === currentM && d.getDate() === currentD) {
-                if (match.result && match.result.includes(currentTeamA)) winA++;
-                if (match.result && match.result.includes(currentTeamB)) winB++;
+                if (match.result && (match.result.includes("CSK") || match.result.includes(currentTeamA))) winA++;
+                if (match.result && (match.result.includes("SBG") || match.result.includes(currentTeamB))) winB++;
             }
         });
     } catch (err) {
-        console.log("Wins tally scanner handled an older log layout safely:", err);
+        console.log("Wins tally engine scanner warning:", err);
     }
     return { winA, winB };
 }
 
+// FIXED: CALCULATES AND RENDERS THE EXACT BRIGHT REQUESTED DUAL TEXT PATHS
 function updateScoreboardDisplay() {
+    let series = calculateDailySeriesWins();
+    
+    // Line 1: Total Wins Display
+    document.getElementById("liveSeriesTracker").innerText = "Total Wins CSK (" + series.winA + ") - SBG (" + series.winB + ")";
+
+    // Line 2: Current Match Fours and Wickets Layout calculator
+    let teamAFours = teamAPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
+    let teamAWickets = teamAPlayers.filter(p => p.enabled && p.isOut).length;
+
+    let teamBFours = teamBPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
+    let teamBWickets = teamBPlayers.filter(p => p.enabled && p.isOut).length;
+
+    // Handle orientation based on current rotation swap status variables
+    let displayCSK_Fours = (currentTeamA === "CSK") ? teamAFours : teamBFours;
+    let displayCSK_Wickets = (currentTeamA === "CSK") ? totalWickets : teamAWickets; 
+    if (currentInnings === 2 && currentTeamA === "CSK") { displayCSK_Wickets = firstInningsWickets; }
+    if (currentInnings === 2 && currentTeamB === "CSK") { displayCSK_Wickets = totalWickets; }
+
+    let displaySBG_Fours = (currentTeamA === "SBG") ? teamAFours : teamBFours;
+    let displaySBG_Wickets = (currentTeamA === "SBG") ? totalWickets : teamBWickets;
+    if (currentInnings === 2 && currentTeamA === "SBG") { displaySBG_Wickets = firstInningsWickets; }
+    if (currentInnings === 2 && currentTeamB === "SBG") { displaySBG_Wickets = totalWickets; }
+
+    document.getElementById("liveTeams").innerText = "Current Match CSK [" + displayCSK_Fours + " / " + displayCSK_Wickets + "] - SBG [" + displaySBG_Fours + " / " + displaySBG_Wickets + "]";
+
     let currentBattingPool = currentInnings === 1 ? teamAPlayers : teamBPlayers;
     let checkedActiveCount = currentBattingPool.filter(p => p.enabled).length || 10;
-
-    document.getElementById("liveTeams").innerText = currentInnings === 1 
-        ? currentTeamA + " (Score: " + totalRuns + " / " + totalWickets + ") - 1st Innings"
-        : currentTeamB + " (Score: " + totalRuns + " / " + totalWickets + ") - 2nd Innings [Target: " + (firstInningsScore + 1) + "]";
-
-    document.getElementById("liveFoursCounter").innerText = "Total Match Boundaries: " + totalTeamFours + " Fours";
-    let series = calculateDailySeriesWins();
-    document.getElementById("liveSeriesTracker").innerText = "Wins Tally Today: " + currentTeamA + " (" + series.winA + ") - (" + series.winB + ") " + currentTeamB;
 
     if (currentInnings === 1 && totalWickets >= checkedActiveCount && checkedActiveCount > 0 && !inningsTransitionPending) {
         inningsTransitionPending = true;
         document.getElementById("manualInningsClosurePanel").classList.remove("hidden");
-        alert("Notice: 1st Innings completed! Verify table stats and tap Close & Transition Innings.");
+        alert("Notice: 1st Innings completed! Verify stats and tap Close & Transition Innings.");
     } else if (currentInnings === 2 && !matchEnded && !matchEndPending) {
         if (totalRuns > firstInningsScore) {
             matchEndPending = true; finalMatchResultText = currentTeamB + " won"; lastWinningTeamName = currentTeamB;
@@ -713,12 +733,12 @@ function renderMatchHistory() {
         <table class="report-table">
             <thead>
                 <tr>
-                    <th style="width:12%;">RK</th>
+                    <th style="width:10%;">RK</th>
                     <th style="width:34%;">PLAYERS</th>
-                    <th style="width:13%;">INN</th>
-                    <th style="width:13%;">4'S</th>
-                    <th style="width:13%;">NO</th>
-                    <th style="width:15%;">S.R</th>
+                    <th style="width:12%;">INN</th>
+                    <th style="width:12%;">4'S</th>
+                    <th style="width:12%;">NO</th>
+                    <th style="width:20%;">S.R</th>
                 </tr>
             </thead>
             <tbody>
