@@ -119,6 +119,22 @@ function showMatchHistory() {
 
 function showSettings() { hideAllViews(); document.getElementById("settingsView").classList.remove("hidden"); loadSettingsUI(); }
 
+function hideAllViews() {
+    const views = ["mainMenu", "matchForm", "scoreboard", "matchHistoryView", "settingsView"];
+    views.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
+}
+
+function broadcastLiveStateToFirebase() {
+    if (!isAdmin) return; 
+    const dataPayload = {
+        currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
+        currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
+        totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
+        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending, lastWinningTeamName
+    };
+    database.ref("live_match_stream").set(dataPayload);
+}
+
 // ==========================================
 // 4. MATCH INITIALIZATION ENGINE
 // ==========================================
@@ -223,27 +239,6 @@ function resetPlayerMatchMetrics(p) {
     p.ballsFaced = 0; p.currentOverBalls = 0; p.foursHit = 0; p.isOut = false;
     p.ballsBowled = 0; p.wicketsTaken = 0; p.fieldingPoints = 0;
     p.widesBowled = 0; p.noBallsBowled = 0;
-}
-
-function hideAllViews() {
-    const views = ["mainMenu", "matchForm", "scoreboard", "matchHistoryView", "settingsView"];
-    views.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
-}
-
-function hideAllViews() {
-    const views = ["mainMenu", "matchForm", "scoreboard", "matchHistoryView", "settingsView"];
-    views.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
-}
-
-function broadcastLiveStateToFirebase() {
-    if (!isAdmin) return; 
-    const dataPayload = {
-        currentTeamA, currentTeamB, totalRuns, totalWickets, totalBalls,
-        currentInnings, firstInningsScore, firstInningsWickets, firstInningsFours,
-        totalTeamFours, matchEnded, currentStrikerName, currentBowlerName,
-        teamAPlayers, teamBPlayers, dynamicBowlerSpells, inningsTransitionPending, matchEndPending, lastWinningTeamName
-    };
-    database.ref("live_match_stream").set(dataPayload);
 }
 
 // ==========================================
@@ -489,21 +484,19 @@ function calculateDailySeriesWins() {
     return { winA, winB };
 }
 
-// FIXED: CALCULATES AND RENDERS THE EXACT BRIGHT REQUESTED DUAL TEXT PATHS
 function updateScoreboardDisplay() {
     let series = calculateDailySeriesWins();
     
-    // Line 1: Total Wins Display
+    // Line 1 Update Tally
     document.getElementById("liveSeriesTracker").innerText = "Total Wins CSK (" + series.winA + ") - SBG (" + series.winB + ")";
 
-    // Line 2: Current Match Fours and Wickets Layout calculator
+    // Line 2 Side-by-Side Live Metric Calculations
     let teamAFours = teamAPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
     let teamAWickets = teamAPlayers.filter(p => p.enabled && p.isOut).length;
 
     let teamBFours = teamBPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0);
     let teamBWickets = teamBPlayers.filter(p => p.enabled && p.isOut).length;
 
-    // Handle orientation based on current rotation swap status variables
     let displayCSK_Fours = (currentTeamA === "CSK") ? teamAFours : teamBFours;
     let displayCSK_Wickets = (currentTeamA === "CSK") ? totalWickets : teamAWickets; 
     if (currentInnings === 2 && currentTeamA === "CSK") { displayCSK_Wickets = firstInningsWickets; }
