@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewSmashers v5.0</title>
+    <title>NewSmashers v5.5</title>
     <link rel="manifest" href="manifest.json">
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <!-- HTML2CANVAS ENGINE FOR HIGH-QUALITY EXTENSIONS CAPTURE -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
@@ -23,23 +25,28 @@
         .menu-btn { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; color: white; }
         .primary-btn { background: #2563eb; }
         .primary-btn:hover { background: #1d4ed8; }
-        .whatsapp-btn { background: #25d366; color: white; font-weight: bold; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 14px; margin-top: 5px; cursor: pointer; }
+        
+        /* EXPORT IMAGE BUTTONS STYLING */
+        .image-export-btn { background: #eab308; color: #0f172a; font-weight: bold; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 14px; margin-top: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .image-export-btn:hover { background: #ca8a04; }
         
         input, select { width: 100%; padding: 14px; margin: 8px 0; border: none; border-radius: 12px; font-size: 15px; background: #334155; color: white; }
         input::placeholder { color: #94a3b8; }
         
-        /* 3. MAXIMUM TOUCH SIZES INCREASED */
         .action-trigger { cursor: pointer; font-size: 13px; font-weight: bold; border: none; border-radius: 8px; transition: transform 0.1s ease; min-height: 44px; padding: 6px 14px; }
         .action-trigger:active { transform: scale(0.95); }
         .action-trigger:disabled { background: #475569 !important; opacity: 0.4; cursor: not-allowed; }
 
         .stat-label-box { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
 
-        .report-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 11px; text-align: left; table-layout: fixed; }
-        .report-table th, .report-table td { padding: 6px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .report-table th { background: #334155; color: #f59e0b; font-weight: bold; text-transform: uppercase; }
-        .report-table td { border-bottom: 1px solid #334155; color: #e2e8f0; }
-        .report-title { background: #f59e0b; color: #0f172a; padding: 6px 8px; font-weight: bold; font-size: 12px; text-transform: uppercase; margin-top: 15px; margin-bottom: 5px; border-radius: 4px; }
+        /* GRAPHIC SNAPSHOT WRAPPER CONTAINER */
+        .snapshot-target-card { background: #0f172a; padding: 15px; border-radius: 14px; border: 2px solid #f59e0b; margin-bottom: 20px; }
+
+        .report-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 12px; text-align: left; table-layout: fixed; }
+        .report-table th, .report-table td { padding: 8px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .report-table th { background: #1e293b; color: #f59e0b; font-weight: bold; text-transform: uppercase; border-bottom: 2px solid #334155; }
+        .report-table td { border-bottom: 1px solid #1e293b; color: #f8fafc; font-size: 13px; }
+        .report-title { background: #f59e0b; color: #0f172a; padding: 8px 10px; font-weight: bold; font-size: 13px; text-transform: uppercase; margin-top: 15px; margin-bottom: 5px; border-radius: 6px; display: flex; align-items: center; gap: 4px; }
         
         .filter-panel { background: #0f172a; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #334155; }
         .filter-group { display: flex; gap: 8px; margin-top: 8px; }
@@ -75,19 +82,17 @@
                 <p id="liveFoursCounter" style="color: #34d399; font-size: 14px; font-weight: bold;">Total Match Boundaries: 0 Fours</p>
             </div>
 
-            <!-- Manual 1st Innings Closure Validation Banner -->
+            <!-- Manual Innings Transitions Banners -->
             <div id="manualInningsClosurePanel" class="card hidden" style="background: #78350f; border: 2px solid #f59e0b; margin-bottom: 15px; padding: 12px; text-align: center;">
                 <p style="font-weight: bold; margin-bottom: 8px; color: #fef08a; font-size: 13px;">⚠️ 1ST INNINGS COMPLETE (REVIEW ENTRIES)</p>
                 <button class="menu-btn" style="background: #f59e0b; color: #0f172a; padding: 10px; font-size: 14px;" onclick="commitInningsTransitionBreak()">🔒 Close & Transition Innings</button>
             </div>
 
-            <!-- Manual 2nd Innings Closure Validation Banner -->
             <div id="manualMatchEndVerificationPanel" class="card hidden" style="background: #991b1b; border: 2px solid #ef4444; margin-bottom: 15px; padding: 12px; text-align: center;">
                 <p style="font-weight: bold; margin-bottom: 8px; color: #fee2e2; font-size: 13px;">⚠️ 2ND INNINGS COMPLETE (VERIFY TARGETS)</p>
                 <button class="menu-btn" style="background: #ef4444; color: white; padding: 10px; font-size: 14px;" onclick="commitFinalMatchClosureHistory()">🔒 Close Match & Log Results</button>
             </div>
 
-            <!-- Next Match Reset Button Panel -->
             <div id="nextMatchCyclePanel" class="card hidden" style="background: #1e3a8a; border: 2px solid #3b82f6; margin-bottom: 15px; padding: 12px; text-align: center;">
                 <p style="font-weight: bold; margin-bottom: 8px; color: #93c5fd;">🏁 MATCH RECORDED SUCCESSFULLY!</p>
                 <button class="menu-btn" style="background: #10b981; padding: 10px; font-size: 14px;" onclick="resetForNextMatchCycle()">🔄 Setup Next Match (Winner Bats First)</button>
@@ -144,10 +149,14 @@
                     </select>
                 </div>
                 
-                <button class="whatsapp-btn" onclick="shareAccumulatedStatsToWhatsApp()">📱 Share Active Leaderboard Report</button>
+                <!-- NEW: EXPORT CURRENT ACTIVE FILTER CONTAINER AS A COMPACT PNG CAPTURE -->
+                <button class="image-export-btn" onclick="exportStandingsHubToPNGImage()">📸 Export Standing Cards as Image</button>
             </div>
 
-            <div id="historyListContainer" style="max-height: 480px; overflow-y: auto; padding-right: 4px;"></div>
+            <!-- This targeted container wraps the exact HTML table layers to convert into graphics -->
+            <div id="snapshotCaptureOuterWrapper">
+                <div id="historyListContainer"></div>
+            </div>
             
             <button id="adminClearHistoryBtnElement" class="menu-btn" style="background:#ef4444; margin-top: 15px;" onclick="clearAllHistory()">🗑️ Clear All History</button>
             <button class="menu-btn" style="background:#475569; margin-top: 5px;" onclick="showMainMenu()">⬅ Back to Menu</button>
@@ -172,3 +181,4 @@
     <script src="app.js"></script>
 </body>
 </html>
+
