@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewSmashers v5.5</title>
+    <title>NewSmashers v5.6</title>
     <link rel="manifest" href="manifest.json">
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <!-- HTML2CANVAS ENGINE FOR HIGH-QUALITY EXTENSIONS CAPTURE -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
@@ -26,7 +25,6 @@
         .primary-btn { background: #2563eb; }
         .primary-btn:hover { background: #1d4ed8; }
         
-        /* EXPORT IMAGE BUTTONS STYLING */
         .image-export-btn { background: #eab308; color: #0f172a; font-weight: bold; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 14px; margin-top: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .image-export-btn:hover { background: #ca8a04; }
         
@@ -39,7 +37,6 @@
 
         .stat-label-box { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
 
-        /* GRAPHIC SNAPSHOT WRAPPER CONTAINER */
         .snapshot-target-card { background: #0f172a; padding: 15px; border-radius: 14px; border: 2px solid #f59e0b; margin-bottom: 20px; }
 
         .report-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 12px; text-align: left; table-layout: fixed; }
@@ -82,7 +79,7 @@
                 <p id="liveFoursCounter" style="color: #34d399; font-size: 14px; font-weight: bold;">Total Match Boundaries: 0 Fours</p>
             </div>
 
-            <!-- Manual Innings Transitions Banners -->
+            <!-- Manual Innings Closure Panels -->
             <div id="manualInningsClosurePanel" class="card hidden" style="background: #78350f; border: 2px solid #f59e0b; margin-bottom: 15px; padding: 12px; text-align: center;">
                 <p style="font-weight: bold; margin-bottom: 8px; color: #fef08a; font-size: 13px;">⚠️ 1ST INNINGS COMPLETE (REVIEW ENTRIES)</p>
                 <button class="menu-btn" style="background: #f59e0b; color: #0f172a; padding: 10px; font-size: 14px;" onclick="commitInningsTransitionBreak()">🔒 Close & Transition Innings</button>
@@ -112,10 +109,11 @@
                 </div>
             </div>
 
-            <div id="teamAHeaderBanner" style="background: #2563eb; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-weight: bold; font-size: 13px; display:flex; justify-content:space-between;"><span>TEAM A</span><span id="teamAFoursBadge">0 Fours</span></div>
+            <!-- FIXED: Direct text ID attributes added to prevent layout structural breaks -->
+            <div id="teamAHeaderBanner" style="background: #2563eb; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-weight: bold; font-size: 13px; display:flex; justify-content:space-between;"><span id="teamAHeaderText">TEAM A</span><span id="teamAFoursBadge">0 Fours</span></div>
             <div id="teamAMatrixContainer" style="max-height: 280px; overflow-y: auto; margin-bottom: 15px; padding-right: 4px;"></div>
 
-            <div id="teamBHeaderBanner" style="background: #10b981; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-weight: bold; font-size: 13px; display:flex; justify-content:space-between;"><span>TEAM B</span><span id="teamBFoursBadge">0 Fours</span></div>
+            <div id="teamBHeaderBanner" style="background: #10b981; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-weight: bold; font-size: 13px; display:flex; justify-content:space-between;"><span id="teamBHeaderText">TEAM B</span><span id="teamBFoursBadge">0 Fours</span></div>
             <div id="teamBMatrixContainer" style="max-height: 280px; overflow-y: auto; margin-bottom: 20px; padding-right: 4px;"></div>
 
             <button id="adminUndoBtnElement" class="menu-btn" style="background:#ef4444;" onclick="undoLastBall()">↩️ Undo Last Action</button>
@@ -149,11 +147,9 @@
                     </select>
                 </div>
                 
-                <!-- NEW: EXPORT CURRENT ACTIVE FILTER CONTAINER AS A COMPACT PNG CAPTURE -->
                 <button class="image-export-btn" onclick="exportStandingsHubToPNGImage()">📸 Export Standing Cards as Image</button>
             </div>
 
-            <!-- This targeted container wraps the exact HTML table layers to convert into graphics -->
             <div id="snapshotCaptureOuterWrapper">
                 <div id="historyListContainer"></div>
             </div>
