@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewSmashers v6.0</title>
+    <title>NewSmashers v6.5</title>
     <link rel="manifest" href="manifest.json">
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -45,7 +45,6 @@
         
         .filter-panel { background: #0f172a; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #334155; }
         
-        /* OVERRIDE SHEET FLEX INPUT LAYER */
         .ledger-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
         .ledger-field-box { background: #1e293b; padding: 10px; border-radius: 10px; border: 1px solid #334155; }
         .ledger-field-box label { font-size: 11px; color: #94a3b8; font-weight: bold; display: block; margin-bottom: 4px; }
@@ -73,12 +72,16 @@
             <input type="text" id="teamB" placeholder="Team B Name (e.g., SBG)">
             
             <label style="font-size: 12px; color:#94a3b8; font-weight:bold; margin-top:6px; display:block;">Select Match Number Index</label>
+            <!-- EXPANDED TO 15 MATCHES OPTION -->
             <select id="matchNumberSelectorIndex">
                 <option value="Match 1">Match 1</option><option value="Match 2">Match 2</option>
                 <option value="Match 3">Match 3</option><option value="Match 4">Match 4</option>
                 <option value="Match 5">Match 5</option><option value="Match 6">Match 6</option>
                 <option value="Match 7">Match 7</option><option value="Match 8">Match 8</option>
                 <option value="Match 9">Match 9</option><option value="Match 10">Match 10</option>
+                <option value="Match 11">Match 11</option><option value="Match 12">Match 12</option>
+                <option value="Match 13">Match 13</option><option value="Match 14">Match 14</option>
+                <option value="Match 15">Match 15</option>
             </select>
 
             <button class="menu-btn primary-btn" style="margin-top: 10px;" onclick="createMatch()">Start Match</button>
@@ -141,6 +144,7 @@
                 <select id="leaderboardFilterScope" onchange="toggleFilterInputs(this.value)">
                     <option value="overall">Overall Status Summary (All Weeks Accumulated)</option>
                     <option value="week">Weekly Identity Filter Tally</option>
+                    <option value="month">Monthly Overview Filter</option>
                     <option value="match-index">Match-Wise Specific Slot Tracker</option>
                 </select>
                 
@@ -148,6 +152,19 @@
                     <select id="filterSpecificWeekDropdown" onchange="renderMatchHistory()"></select>
                 </div>
 
+                <!-- ADDED MONTH SELECTION FROM USER PROMPT -->
+                <div id="monthFilterGroup" class="filter-group hidden">
+                    <select id="filterSpecificMonthDropdown" onchange="renderMatchHistory()">
+                        <option value="01">January</option><option value="02">February</option>
+                        <option value="03">March</option><option value="04">April</option>
+                        <option value="05">May</option><option value="06">June</option>
+                        <option value="07">July</option><option value="08">August</option>
+                        <option value="09">September</option><option value="10">October</option>
+                        <option value="11">November</option><option value="12">December</option>
+                    </select>
+                </div>
+
+                <!-- MATCH 1 TO 15 DROPDOWN SELECTOR -->
                 <div id="matchIndexFilterGroup" class="filter-group hidden">
                     <select id="filterSpecificMatchIndexDropdown" onchange="renderMatchHistory()">
                         <option value="Match 1">Match 1 Only</option><option value="Match 2">Match 2 Only</option>
@@ -155,13 +172,16 @@
                         <option value="Match 5">Match 5 Only</option><option value="Match 6">Match 6 Only</option>
                         <option value="Match 7">Match 7 Only</option><option value="Match 8">Match 8 Only</option>
                         <option value="Match 9">Match 9 Only</option><option value="Match 10">Match 10 Only</option>
+                        <option value="Match 11">Match 11 Only</option><option value="Match 12">Match 12 Only</option>
+                        <option value="Match 13">Match 13 Only</option><option value="Match 14">Match 14 Only</option>
+                        <option value="Match 15">Match 15 Only</option>
                     </select>
                 </div>
                 
                 <button class="image-export-btn" onclick="exportStandingsHubToPNGImage()">📸 Export Standing Cards as Image</button>
             </div>
 
-            <!-- NEW: ADMIN MANUAL LEDGER STATS OVERRIDE BOARD -->
+            <!-- ADMIN OVERRIDE LEDGER INPUT CONTROLS -->
             <div id="adminLedgerManualOverrideCard" class="card" style="border: 2px dashed #a855f7; background: rgba(168, 85, 247, 0.05); margin-bottom: 20px;">
                 <h4 style="color:#a855f7; font-size:13px; text-transform:uppercase; text-align:center;">🛠️ ADMIN ROSTER STATS OVERRIDE PANEL</h4>
                 
