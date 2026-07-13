@@ -174,9 +174,9 @@ function toggleMatrixPlayerRow(teamSide, id, isChecked) {
 function resetForNextMatchCycle() {
     isMatchActiveShieldEnabled = true;
 
-    // Increment Match Number Index Counter Automatically up to Match 10
+    // Increments counter up to match 15 automatically on resets
     let currNum = parseInt(activeMatchIndexLabel.replace("Match ", ""));
-    if (currNum < 10) { activeMatchIndexLabel = "Match " + (currNum + 1); }
+    if (currNum < 15) { activeMatchIndexLabel = "Match " + (currNum + 1); }
 
     if (lastWinningTeamName === currentTeamB) {
         let tempTeamName = currentTeamA; currentTeamA = currentTeamB; currentTeamB = tempTeamName;
@@ -210,51 +210,47 @@ function renderDualMatrixUI() {
     document.getElementById("teamBFoursBadge").innerText = teamBPlayers.filter(p => p.enabled).reduce((sum, p) => sum + p.foursHit, 0) + " Fours";
 }
 
-function renderSideContainer(containerId, playersList, sideCode) {
-    const container = document.getElementById(containerId); if (!container) return;
-    let sortedPlayers = [...playersList].sort((a, b) => (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0)), html = "";
+function renderSideContainer(containerId, list, code) {
+    const c = document.getElementById(containerId); if (!c) return;
+    let s = [...list].sort((a, b) => (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0)), html = "";
     
-    sortedPlayers.forEach(p => {
-        const bgStyle = p.enabled ? "background: #1e293b;" : "background: #1e293b; opacity: 0.35;";
-        const checkedAttr = p.enabled ? "checked" : "";
-        const outStyle = p.isOut ? "text-decoration: line-through; color: #ef4444;" : "";
-        let foursBadgeHTML = p.foursHit > 0 || p.isOut ? `<span style="background:${p.isOut ? '#dc2626':'#2563eb'}; color:#fff; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold;">${p.isOut ? '❌':'★'} ${p.foursHit} 4s</span>` : "";
+    s.forEach(p => {
+        const bg = p.enabled ? "background: #1e293b;" : "background: #1e293b; opacity: 0.35;";
+        const active = currentStrikerName !== "" && currentBowlerName !== "";
+        const disAct = (!p.enabled || !active || p.name !== currentStrikerName) ? "disabled" : "";
+        const disEx = (!p.enabled || !active) ? "disabled" : "";
+        const outSt = p.isOut ? "text-decoration: line-through; color: #ef4444;" : "";
+        let badge = p.foursHit > 0 || p.isOut ? `<span style="background:${p.isOut ? '#dc2626':'#2563eb'}; color:#fff; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold;">${p.isOut ? '❌':'★'} ${p.foursHit} 4s</span>` : "";
 
-        const isFaceoffActive = (currentStrikerName !== "" && currentBowlerName !== "");
-        const isActionDisabled = (!p.enabled || !isFaceoffActive || p.name !== currentStrikerName) ? "disabled" : "";
-        const isExtraDisabled = (!p.enabled || !isFaceoffActive) ? "disabled" : "";
-
-        const controlButtonsHTML = isAdmin ? `
+        const btn = isAdmin ? `
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
                     <div style="display: flex; gap: 6px;">
-                        <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'dot')" style="background:#475569; color:#fff;">Dot</button>
-                        <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'four')" style="background:#2563eb; color:#fff; width: 55px;">+4</button>
-                        <button class="action-trigger" ${isActionDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'out-btn')" style="background:#dc2626; color:#fff;">OUT</button>
+                        <button class="action-trigger" ${disAct} onclick="executeDirectAction('${code}', ${p.id}, 'dot')" style="background:#475569; color:#fff;">Dot</button>
+                        <button class="action-trigger" ${disAct} onclick="executeDirectAction('${code}', ${p.id}, 'four')" style="background:#2563eb; color:#fff; width: 55px;">+4</button>
+                        <button class="action-trigger" ${disAct} onclick="executeDirectAction('${code}', ${p.id}, 'out-btn')" style="background:#dc2626; color:#fff;">OUT</button>
                     </div>
                     <div style="display: flex; gap: 4px;"><span class="stat-label-box">B: ${p.ballsBowled}</span><span class="stat-label-box" style="border-color: #dc2626; color: #fca5a5;">W: ${p.wicketsTaken}</span></div>
                 </div>
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; border-top: 1px dashed #334155; padding-top: 6px;">
                     <div style="display: flex; gap: 6px;">
-                        <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-wide')" style="background:#f59e0b; color:#0f172a;">WD (${p.widesBowled || 0})</button>
-                        <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'bowl-noball')" style="background:#f59e0b; color:#0f172a;">NB (${p.noBallsBowled || 0})</button>
+                        <button class="action-trigger" ${disEx} onclick="executeDirectAction('${code}', ${p.id}, 'bowl-wide')" style="background:#f59e0b; color:#0f172a;">WD (${p.widesBowled || 0})</button>
+                        <button class="action-trigger" ${disEx} onclick="executeDirectAction('${code}', ${p.id}, 'bowl-noball')" style="background:#f59e0b; color:#0f172a;">NB (${p.noBallsBowled || 0})</button>
                     </div>
-                    <button class="action-trigger" ${isExtraDisabled} onclick="executeDirectAction('${sideCode}', ${p.id}, 'field-point')" style="background:#a855f7; color:#fff;">Field Pts (${p.fieldingPoints})</button>
+                    <button class="action-trigger" ${disEx} onclick="executeDirectAction('${code}', ${p.id}, 'field-point')" style="background:#a855f7; color:#fff;">Field Pts (${p.fieldingPoints})</button>
                 </div>
             </div>` : `<div style="font-size:11px; color:#94a3b8;">Bowling: <b>B: ${p.ballsBowled} | W: ${p.wicketsTaken}</b> | Extras: WD:${p.widesBowled||0} NB:${p.noBallsBowled||0} | Fielding: <b style="color:#a855f7;">${p.fieldingPoints} Pts</b></div>`;
 
-        html += `
-            <div class="player-matrix-row" style="${bgStyle} padding: 12px; margin-bottom: 8px; border-radius: 10px; border: 1px solid #334155;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div>
-                        ${isAdmin ? `<input type="checkbox" ${checkedAttr} ${totalBalls>0||totalRuns>0||totalWickets>0||currentInnings===2?'disabled':''} onclick="toggleMatrixPlayerRow('${sideCode}', ${p.id}, this.checked)" style="transform: scale(1.2); cursor: pointer; margin-right:4px;">` : '🏃'}
-                        <span style="font-weight: bold; font-size: 14px; color: #fff; ${outStyle}">${p.name}</span>
-                        ${p.ballsFaced > 0 && !p.isOut ? `<span style="font-size:11px; color:#94a3b8;">(${p.ballsFaced}b / Ov: ${p.currentOverBalls}b)</span>` : ''}
-                    </div>
-                    <div>${foursBadgeHTML}</div>
-                </div>${controlButtonsHTML}
-            </div>`;
-    }); container.innerHTML = html;
+        html += `<div style="${bg} padding: 12px; margin-bottom: 8px; border-radius: 10px; border: 1px solid #334155;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <div>
+                    ${isAdmin ? `<input type="checkbox" ${p.enabled?'checked':''} ${totalBalls>0||totalRuns>0||totalWickets>0||currentInnings===2?'disabled':''} onclick="toggleMatrixPlayerRow('${code}', ${p.id}, this.checked)" style="transform: scale(1.2); cursor: pointer; margin-right:4px;">` : '🏃'}
+                    <span style="font-weight: bold; font-size: 14px; color: #fff; ${outSt}">${p.name}</span>
+                </div>
+                <div>${badge}</div>
+            </div>${btn}
+        </div>`;
+    }); c.innerHTML = html;
 }
 
 function rebuildActiveDropdownOptions() {
@@ -269,9 +265,6 @@ function rebuildActiveDropdownOptions() {
 function changeActiveStriker(name) { currentStrikerName = name; renderDualMatrixUI(); broadcastLiveStateToFirebase(); }
 function changeActiveBowler(name) { currentBowlerName = name; renderDualMatrixUI(); broadcastLiveStateToFirebase(); }
 
-// ==========================================
-// 6. AUTOMATED DELIVERIES SCORING WORKFLOWS
-// ==========================================
 function executeDirectAction(sideCode, playerId, type) {
     if (matchEnded && type && !['field-point', 'bowl-wide', 'bowl-noball'].includes(type)) { alert("Match has finished!"); return; }
     let activePool = sideCode === 'A' ? teamAPlayers : teamBPlayers; let targetPlayer = activePool.find(p => p.id === playerId); if (!targetPlayer || !targetPlayer.enabled) return;
@@ -282,7 +275,7 @@ function executeDirectAction(sideCode, playerId, type) {
 
     if (type === 'dot') {
         targetPlayer.ballsFaced++; targetPlayer.currentOverBalls++; totalBalls++; if (selectedBowlerObj) selectedBowlerObj.ballsBowled++;
-        if (targetPlayer.currentOverBalls >= 6) { targetPlayer.isOut = true; totalWickets++; if (selectedBowlerObj) selectedBowlerObj.wicketsTaken++; alert(`Wicket! ${targetPlayer.name} faced 6 dots!`); currentStrikerName = ""; }
+        if (targetPlayer.currentOverBalls >= 6) { targetPlayer.isOut = true; totalWickets++; if (selectedBowlerObj) selectedBowlerObj.wicketsTaken++; alert(`Wicket! 6 dots out!`); currentStrikerName = ""; }
     } 
     else if (type === 'four') {
         targetPlayer.ballsFaced++; targetPlayer.foursHit++; totalRuns += 4; totalTeamFours++; totalBalls++; targetPlayer.currentOverBalls = 0; if (selectedBowlerObj) selectedBowlerObj.ballsBowled++; alert(`🎉 4 Hit!`); currentBowlerName = ""; 
@@ -400,10 +393,11 @@ function populateWeeklyFilterDropdownOptions() {
 function exportStandingsHubToPNGImage() {
     const element = document.getElementById("snapshotCaptureOuterWrapper"); if (!element) return;
     html2canvas(element, { backgroundColor: "#0f172a", scale: 2 }).then(canvas => {
-        const dAnchor = document.createElement("a"); dAnchor.href = canvas.toDataURL("image/png"); dAnchor.download = "NewSmashers_Leaderboard_v6.png"; dAnchor.click();
+        const dAnchor = document.createElement("a"); dAnchor.href = canvas.toDataURL("image/png"); dAnchor.download = "NewSmashers_Filtered_Leaderboard.png"; dAnchor.click();
     });
 }
 
+// FIXED: RENDERS MATCH INDEX FILTER BY ISOLATING EXTRIES & TRIMMING OUT ZERO COUNTS
 function renderMatchHistory() {
     const historyContainer = document.getElementById("historyListContainer"); if (!historyContainer) return;
     let filterScope = document.getElementById("leaderboardFilterScope").value;
@@ -412,12 +406,23 @@ function renderMatchHistory() {
     if (filterScope === "week") {
         let wTarget = document.getElementById("filterSpecificWeekDropdown").value;
         if (wTarget) filteredMatches = filteredMatches.filter(m => m.weeklySeriesCode === wTarget);
+    } else if (filterScope === "month") {
+        let mTarget = document.getElementById("filterSpecificMonthDropdown").value;
+        if (mTarget) filteredMatches = filteredMatches.filter(m => {
+            let dateObj = new Date(m.timestamp);
+            return String(dateObj.getMonth() + 1).padStart(2, '0') === mTarget;
+        });
     } else if (filterScope === "match-index") {
-        let mTarget = document.getElementById("filterSpecificMatchIndexDropdown").value;
-        if (mTarget) filteredMatches = filteredMatches.filter(m => m.matchIndexCode === mTarget);
+        let idxTarget = document.getElementById("filterSpecificMatchIndexDropdown").value;
+        if (idxTarget) filteredMatches = filteredMatches.filter(m => m.matchIndexCode === idxTarget);
     }
 
-    let batsmanMetrics = {}; MASTER_ROSTER.forEach(n => { let override = manualLedgerStorage[n] || {}; batsmanMetrics[n] = { name: n, matches: override.matches||0, fours: override.fours||0, silver: override.silver||0, gold: override.gold||0, tenPlus: 0, bestFours: 0, wickets: override.wickets||0, points: override.points||0 }; });
+    let batsmanMetrics = {}; 
+    MASTER_ROSTER.forEach(n => { 
+        // Only load manual baseline records if compiling the global overall view
+        let override = (filterScope === "overall") ? (manualLedgerStorage[n] || {}) : {};
+        batsmanMetrics[n] = { name: n, matches: override.matches||0, fours: override.fours||0, silver: override.silver||0, gold: override.gold||0, wickets: override.wickets||0, points: override.points||0 }; 
+    });
 
     filteredMatches.forEach(match => {
         if (match.players) {
@@ -431,33 +436,52 @@ function renderMatchHistory() {
         }
     });
 
-    let lBat = Object.values(batsmanMetrics).sort((a,b) => b.fours - a.fours);
-    let lBowl = Object.values(batsmanMetrics).sort((a,b) => b.wickets - a.wickets);
-    let lFld = Object.values(batsmanMetrics).sort((a,b) => b.points - a.points);
+    // FIXED CRITERIA: ONLY LIST WHO ARE HAVING ENTRY (TRIMS AWAY EXTRA WALL OF ZEROS FOR NEAT LAYOUT)
+    let lBat = Object.values(batsmanMetrics).filter(p => p.matches > 0 || p.fours > 0).sort((a,b) => b.fours - a.fours);
+    let lBowl = Object.values(batsmanMetrics).filter(p => p.matches > 0 || p.wickets > 0).sort((a,b) => b.wickets - a.wickets);
+    let lFld = Object.values(batsmanMetrics).filter(p => p.matches > 0 || p.points > 0).sort((a,b) => b.points - a.points);
+
+    let headingTitleText = "OVERALL STATUS SUMMARY";
+    if (filterScope === "week") headingTitleText = document.getElementById("filterSpecificWeekDropdown").value || "WEEKLY REPORT";
+    if (filterScope === "month") headingTitleText = "MONTHLY COMPILATION - ID: " + document.getElementById("filterSpecificMonthDropdown").value;
+    if (filterScope === "match-index") headingTitleText = "ISOLATED SPECIFIC TARGET: " + document.getElementById("filterSpecificMatchIndexDropdown").value;
+
+    let individualMatchLogsHTML = `<h4 style="color:#94a3b8; font-size:12px; text-transform:uppercase; margin-bottom:10px; margin-top:20px;">📋 Individual Raw Game Logs Included</h4>`;
+    filteredMatches.forEach(match => {
+        individualMatchLogsHTML += `<div class="match-history-card" style="background:#223047; padding:12px; margin-bottom:12px; border-radius:8px; border: 1px solid #334155; font-size:13px;">
+            <div style="font-size:11px; color:#94a3b8; font-weight:bold; margin-bottom:2px;">${match.weeklySeriesCode || 'N/A'} - ${match.matchIndexCode || 'N/A'} (${new Date(match.timestamp).toLocaleDateString()})</div>
+            <h4 style="color:#fff;">${match.teams}</h4><div>${match.totals}</div><div style="color:#34d399; font-weight:bold; font-size:12px; margin-top:2px;">${match.result}</div>
+        </div>`;
+    });
 
     historyContainer.innerHTML = `<div class="snapshot-target-card">
-        <h3 style="color:#f59e0b; text-align:center; font-size:14px; margin-bottom:12px;">🏆 ACCUMULATED STANDINGS HUB (v6.0) 🏆</h3>
-        <div class="report-title">🏏 OVERALL MOST FOURS RANKING</div>
+        <h3 style="color:#f59e0b; text-align:center; font-size:14px; margin-bottom:4px; text-transform:uppercase;">🏆 ACCUMULATED STANDINGS HUB 🏆</h3>
+        <div style="font-size:11px; text-align:center; color:#94a3b8; font-weight:bold; margin-bottom:12px; text-transform:uppercase;">📊 Scope: ${headingTitleText}</div>
+        
+        <div class="report-title">🏏 MOST FOURS RANKING</div>
         <table class="report-table">
             <thead><tr><th style="width:10%;">RK</th><th style="width:30%;">PLAYERS</th><th style="width:12%;">MAT</th><th style="width:12%;">4'S</th><th style="width:16%;">S.RATE</th><th style="width:10%;">S</th><th style="width:10%;">G</th></tr></thead>
-            <tbody>${lBat.map((p,i)=>`<tr><td>${i+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#3b82f6; font-weight:bold;">${p.fours}</td><td>${p.matches>0?((p.fours/p.matches)*100).toFixed(1):0}%</td><td>${p.silver}</td><td>${p.gold}</td></tr>`).join('')}</tbody>
+            <tbody>${lBat.length > 0 ? lBat.map((p,i)=>`<tr><td>${i+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#3b82f6; font-weight:bold;">${p.fours}</td><td>${p.matches>0?((p.fours/p.matches)*100).toFixed(1):0}%</td><td>${p.silver}</td><td>${p.gold}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center; opacity:0.5;">No recorded entries found</td></tr>'}</tbody>
         </table>
-        <div class="report-title">🏃 OVERALL MOST WICKETS RANKING</div>
+        <div class="report-title">🏃 MOST WICKETS RANKING</div>
         <table class="report-table">
             <thead><tr><th style="width:12%;">RK</th><th style="width:40%;">PLAYERS</th><th style="width:16%;">MAT</th><th style="width:16%;">W'S</th><th style="width:16%;">AVG</th></tr></thead>
-            <tbody>${lBowl.map((p,i)=>`<tr><td>${i+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#ef4444; font-weight:bold;">${p.wickets}</td><td>${p.matches>0?(p.wickets/p.matches).toFixed(2):"0.00"}</td></tr>`).join('')}</tbody>
+            <tbody>${lBowl.length > 0 ? lBowl.map((p,i)=>`<tr><td>${i+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#ef4444; font-weight:bold;">${p.wickets}</td><td>${p.matches>0?(p.wickets/p.matches).toFixed(2):"0.00"}</td></tr>`).join('') : '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No recorded entries found</td></tr>'}</tbody>
         </table>
-        <div class="report-title">🧤 OVERALL MOST FIELDING POINTS</div>
+        <div class="report-title">🧤 MOST FIELDING POINTS</div>
         <table class="report-table">
             <thead><tr><th style="width:12%;">RK</th><th style="width:40%;">PLAYERS</th><th style="width:16%;">MAT</th><th style="width:16%;">PTS</th><th style="width:16%;">EFF</th></tr></thead>
-            <tbody>${lFld.map((p,i)=>`<tr><td>${i+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#a855f7; font-weight:bold;">${p.points}</td><td>${p.matches>0?(p.points/p.matches).toFixed(1):0}%</td></tr>`).join('')}</tbody>
+            <tbody>${lFld.length > 0 ? lFld.map((p,i)=>`<tr><td>${i+1}</td><td><b>${p.name}</b></td><td>${p.matches}</td><td style="color:#a855f7; font-weight:bold;">${p.points}</td><td>${p.matches>0?(p.points/p.matches).toFixed(1):0}%</td></tr>`).join('') : '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No recorded entries found</td></tr>'}</tbody>
         </table>
-    </div>`;
+    </div>` + individualMatchLogsHTML;
 }
 
 function toggleFilterInputs(s) {
-    document.getElementById("weekFilterGroup").classList.add("hidden"); document.getElementById("matchIndexFilterGroup").classList.add("hidden");
+    document.getElementById("weekFilterGroup").classList.add("hidden"); 
+    document.getElementById("monthFilterGroup").classList.add("hidden"); 
+    document.getElementById("matchIndexFilterGroup").classList.add("hidden");
     if (s === "week") document.getElementById("weekFilterGroup").classList.remove("hidden");
+    else if (s === "month") document.getElementById("monthFilterGroup").classList.remove("hidden");
     else if (s === "match-index") document.getElementById("matchIndexFilterGroup").classList.remove("hidden");
     renderMatchHistory();
 }
