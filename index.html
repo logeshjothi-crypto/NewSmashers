@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewSmashers v5.7</title>
+    <title>NewSmashers v6.0</title>
     <link rel="manifest" href="manifest.json">
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -26,7 +26,6 @@
         .primary-btn:hover { background: #1d4ed8; }
         
         .image-export-btn { background: #eab308; color: #0f172a; font-weight: bold; width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 14px; margin-top: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .image-export-btn:hover { background: #ca8a04; }
         
         input, select { width: 100%; padding: 14px; margin: 8px 0; border: none; border-radius: 12px; font-size: 15px; background: #334155; color: white; }
         input::placeholder { color: #94a3b8; }
@@ -36,7 +35,6 @@
         .action-trigger:disabled { background: #475569 !important; opacity: 0.4; cursor: not-allowed; }
 
         .stat-label-box { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
-
         .snapshot-target-card { background: #0f172a; padding: 15px; border-radius: 14px; border: 2px solid #f59e0b; margin-bottom: 20px; }
 
         .report-table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; font-size: 12px; text-align: left; table-layout: fixed; }
@@ -46,7 +44,12 @@
         .report-title { background: #f59e0b; color: #0f172a; padding: 8px 10px; font-weight: bold; font-size: 13px; text-transform: uppercase; margin-top: 15px; margin-bottom: 5px; border-radius: 6px; display: flex; align-items: center; gap: 4px; }
         
         .filter-panel { background: #0f172a; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #334155; }
-        .filter-group { display: flex; gap: 8px; margin-top: 8px; }
+        
+        /* OVERRIDE SHEET FLEX INPUT LAYER */
+        .ledger-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
+        .ledger-field-box { background: #1e293b; padding: 10px; border-radius: 10px; border: 1px solid #334155; }
+        .ledger-field-box label { font-size: 11px; color: #94a3b8; font-weight: bold; display: block; margin-bottom: 4px; }
+        .ledger-field-box input { padding: 8px; margin: 0; font-size: 14px; background: #0f172a; }
     </style>
 </head>
 <body>
@@ -65,21 +68,31 @@
         <!-- 2. MATCH CREATION FORM VIEW -->
         <div id="matchForm" class="card hidden">
             <h2>Create Series Match</h2>
+            <input type="text" id="seriesIdentityInput" placeholder="Series Week Stamp (e.g., Week 1 - July 14)">
             <input type="text" id="teamA" placeholder="Team A Name (e.g., CSK)">
             <input type="text" id="teamB" placeholder="Team B Name (e.g., SBG)">
+            
+            <label style="font-size: 12px; color:#94a3b8; font-weight:bold; margin-top:6px; display:block;">Select Match Number Index</label>
+            <select id="matchNumberSelectorIndex">
+                <option value="Match 1">Match 1</option><option value="Match 2">Match 2</option>
+                <option value="Match 3">Match 3</option><option value="Match 4">Match 4</option>
+                <option value="Match 5">Match 5</option><option value="Match 6">Match 6</option>
+                <option value="Match 7">Match 7</option><option value="Match 8">Match 8</option>
+                <option value="Match 9">Match 9</option><option value="Match 10">Match 10</option>
+            </select>
+
             <button class="menu-btn primary-btn" style="margin-top: 10px;" onclick="createMatch()">Start Match</button>
             <button class="menu-btn" style="background:#475569; margin-top:5px;" onclick="showMainMenu()">Cancel</button>
         </div>
 
         <!-- 3. SCOREBOARD VIEW -->
         <div id="scoreboard" class="card hidden">
-            <!-- DYNAMIC HIGH-VISIBILITY CRICT TRACKER BANNER ROW -->
             <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 18px; text-align: center;">
                 <h3 id="liveSeriesTracker" style="color: #f59e0b; font-size: 21px; font-weight: 900; letter-spacing: 0.3px;">Total Wins CSK (0) - SBG (0)</h3>
                 <p id="liveTeams" style="color: #38bdf8; font-size: 16px; font-weight: bold; line-height: 1.4; background: rgba(56, 189, 248, 0.1); padding: 6px 14px; border-radius: 8px; width: 100%; border: 1px dashed rgba(56, 189, 248, 0.2);">Current Match CSK [0 / 0] - SBG [0 / 0]</p>
             </div>
 
-            <!-- Manual Innings Transitions -->
+            <!-- Manual Innings Closure Panels -->
             <div id="manualInningsClosurePanel" class="card hidden" style="background: #78350f; border: 2px solid #f59e0b; margin-bottom: 15px; padding: 12px; text-align: center;">
                 <p style="font-weight: bold; margin-bottom: 8px; color: #fef08a; font-size: 13px;">⚠️ 1ST INNINGS COMPLETE (REVIEW ENTRIES)</p>
                 <button class="menu-btn" style="background: #f59e0b; color: #0f172a; padding: 10px; font-size: 14px;" onclick="commitInningsTransitionBreak()">🔒 Close & Transition Innings</button>
@@ -92,7 +105,7 @@
 
             <div id="nextMatchCyclePanel" class="card hidden" style="background: #1e3a8a; border: 2px solid #3b82f6; margin-bottom: 15px; padding: 12px; text-align: center;">
                 <p style="font-weight: bold; margin-bottom: 8px; color: #93c5fd;">🏁 MATCH RECORDED SUCCESSFULLY!</p>
-                <button class="menu-btn" style="background: #10b981; padding: 10px; font-size: 14px;" onclick="resetForNextMatchCycle()">🔄 Setup Next Match (Winner Bats First)</button>
+                <button class="menu-btn" style="background: #10b981; padding: 10px; font-size: 14px;" onclick="resetForNextMatchCycle()">🔄 Setup Next Match Index Slot</button>
             </div>
 
             <div id="activeMatchupCardPanel" style="background: #0f172a; padding: 12px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #2563eb;">
@@ -124,29 +137,47 @@
             <h2>Roster Accumulator Hub</h2>
             
             <div class="filter-panel">
-                <label style="color: #3b82f6; font-size: 12px; font-weight: bold;">📅 SELECT LOG FILTER METRIC</label>
+                <label style="color: #3b82f6; font-size: 12px; font-weight: bold;">📅 CHOOSE GROUP REPORT FILTER VIEW</label>
                 <select id="leaderboardFilterScope" onchange="toggleFilterInputs(this.value)">
-                    <option value="overall">Overall Status (All Match Logs)</option>
-                    <option value="date">Date-Wise Range Filter</option>
-                    <option value="month">Month-Wise Filter</option>
+                    <option value="overall">Overall Status Summary (All Weeks Accumulated)</option>
+                    <option value="week">Weekly Identity Filter Tally</option>
+                    <option value="match-index">Match-Wise Specific Slot Tracker</option>
                 </select>
                 
-                <div id="dateFilterGroup" class="filter-group hidden">
-                    <input type="date" id="filterSpecificDate" onchange="renderMatchHistory()">
+                <div id="weekFilterGroup" class="filter-group hidden">
+                    <select id="filterSpecificWeekDropdown" onchange="renderMatchHistory()"></select>
                 </div>
 
-                <div id="monthFilterGroup" class="filter-group hidden">
-                    <select id="filterSpecificMonth" onchange="renderMatchHistory()">
-                        <option value="01">January</option> <option value="02">February</option>
-                        <option value="03">March</option>   <option value="04">April</option>
-                        <option value="05">May</option>     <option value="06">June</option>
-                        <option value="07">July</option>    <option value="08">August</option>
-                        <option value="09">September</option><option value="10">October</option>
-                        <option value="11">November</option> <option value="12">December</option>
+                <div id="matchIndexFilterGroup" class="filter-group hidden">
+                    <select id="filterSpecificMatchIndexDropdown" onchange="renderMatchHistory()">
+                        <option value="Match 1">Match 1 Only</option><option value="Match 2">Match 2 Only</option>
+                        <option value="Match 3">Match 3 Only</option><option value="Match 4">Match 4 Only</option>
+                        <option value="Match 5">Match 5 Only</option><option value="Match 6">Match 6 Only</option>
+                        <option value="Match 7">Match 7 Only</option><option value="Match 8">Match 8 Only</option>
+                        <option value="Match 9">Match 9 Only</option><option value="Match 10">Match 10 Only</option>
                     </select>
                 </div>
                 
                 <button class="image-export-btn" onclick="exportStandingsHubToPNGImage()">📸 Export Standing Cards as Image</button>
+            </div>
+
+            <!-- NEW: ADMIN MANUAL LEDGER STATS OVERRIDE BOARD -->
+            <div id="adminLedgerManualOverrideCard" class="card" style="border: 2px dashed #a855f7; background: rgba(168, 85, 247, 0.05); margin-bottom: 20px;">
+                <h4 style="color:#a855f7; font-size:13px; text-transform:uppercase; text-align:center;">🛠️ ADMIN ROSTER STATS OVERRIDE PANEL</h4>
+                
+                <label style="font-size:11px; color:#94a3b8; font-weight:bold; margin-top:8px; display:block;">Select Roster Target Player Profile</label>
+                <select id="ledgerPlayerSelectorTarget" onchange="loadSelectedPlayerLedgerProfile(this.value)"></select>
+
+                <div class="ledger-grid">
+                    <div class="ledger-field-box"><label>Matches Played</label><input type="number" id="ledg_matches" value="0"></div>
+                    <div class="ledger-field-box"><label>Silver Medals</label><input type="number" id="ledg_silver" value="0"></div>
+                    <div class="ledger-field-box"><label>Gold Medals</label><input type="number" id="ledg_gold" value="0"></div>
+                    <div class="ledger-field-box"><label>Batting 4s Hit</label><input type="number" id="ledg_fours" value="0"></div>
+                    <div class="ledger-field-box"><label>Bowling Wickets</label><input type="number" id="ledg_wickets" value="0"></div>
+                    <div class="ledger-field-box"><label>Fielding Points</label><input type="number" id="ledg_points" value="0"></div>
+                </div>
+
+                <button class="menu-btn" style="background:#a855f7; padding:10px; font-size:14px; margin-top:12px;" onclick="submitManualLedgerOverrideProfile()">💾 Overwrite & Save Player Profile</button>
             </div>
 
             <div id="snapshotCaptureOuterWrapper">
