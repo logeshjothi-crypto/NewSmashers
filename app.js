@@ -59,7 +59,7 @@ function stripAdminControlsFromDOM() {
 // 2. MASTER SQUAD DATABASE
 // ==========================================
 const MASTER_ROSTER = [
-    "Abbas", "David", "Gaja", "Karthi Anna", "Karthi S G", 
+    "Abbas", "David", "Gaja", "Karthi anna", "Karthi S G", 
     "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
     "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
@@ -78,6 +78,7 @@ let activeWeeklySeriesLabel = "Week 1 - July 14";
 let activeMatchIndexLabel = "Match 1";
 
 let matchHistory = []; try { matchHistory = JSON.parse(localStorage.getItem("ns_match_history")) || []; } catch(e) {}
+// UPDATED: Holds multi-dimensional database context blocks safely
 let manualLedgerStorage = {}; try { manualLedgerStorage = JSON.parse(localStorage.getItem("ns_manual_ledger")) || {}; } catch(e) {}
 let appSettings = { vibrateOnBall: false, confirmUndo: false }; try { appSettings = JSON.parse(localStorage.getItem("ns_settings")) || { vibrateOnBall: false, confirmUndo: false }; } catch(e) {}
 let dynamicBowlerSpells = [];
@@ -99,7 +100,7 @@ function showMatchHistory() {
     toggleFilterInputs("overall");
     populateWeeklyFilterDropdownOptions();
     rebuildLedgerPlayerOptionsDropdown();
-    renderMatchHistory(); 
+    onFilterViewScopeContextChanged(); 
 }
 
 function showSettings() { hideAllViews(); document.getElementById("settingsView").classList.remove("hidden"); loadSettingsUI(); }
@@ -174,7 +175,6 @@ function toggleMatrixPlayerRow(teamSide, id, isChecked) {
 function resetForNextMatchCycle() {
     isMatchActiveShieldEnabled = true;
 
-    // Increments counter up to match 15 automatically on resets
     let currNum = parseInt(activeMatchIndexLabel.replace("Match ", ""));
     if (currNum < 15) { activeMatchIndexLabel = "Match " + (currNum + 1); }
 
@@ -335,8 +335,20 @@ function commitInningsTransitionBreak() { firstInningsScore = totalRuns; firstIn
 function commitFinalMatchClosureHistory() { matchEnded = true; matchEndPending = false; isMatchActiveShieldEnabled = false; document.getElementById("manualMatchEndVerificationPanel").classList.add("hidden"); document.getElementById("nextMatchCyclePanel").classList.remove("hidden"); saveMatchToHistory(finalMatchResultText); alert(`Match officially recorded under ${activeMatchIndexLabel}!`); }
 
 // ==========================================
-// 7. MANUAL OVERRIDE LEDGER ENGINE DATA HOOKS
+// 7. CONTEXT-AWARE MANUAL LEDGER OVERRIDES
 // ==========================================
+function getActiveLedgerStorageKeyLabel() {
+    let scope = document.getElementById("leaderboardFilterScope").value;
+    if (scope === "week") {
+        return "WEEK:" + (document.getElementById("filterSpecificWeekDropdown").value || "Week 1 - July 14");
+    } else if (scope === "month") {
+        return "MONTH:" + document.getElementById("filterSpecificMonthDropdown").value;
+    } else if (scope === "match-index") {
+        return "MATCHINDEX:" + document.getElementById("filterSpecificMatchIndexDropdown").value;
+    }
+    return "OVERALL";
+}
+
 function rebuildLedgerPlayerOptionsDropdown() {
     const selector = document.getElementById("ledgerPlayerSelectorTarget"); if (!selector) return;
     let html = `<option value="">-- Choose Profile to Override --</option>`;
@@ -346,7 +358,11 @@ function rebuildLedgerPlayerOptionsDropdown() {
 
 function loadSelectedPlayerLedgerProfile(name) {
     if (!name) return;
-    let pData = manualLedgerStorage[name] || { matches: 0, silver: 0, gold: 0, fours: 0, wickets: 0, points: 0 };
+    let contextKey = getActiveLedgerStorageKeyLabel();
+    
+    if (!manualLedgerStorage[contextKey]) manualLedgerStorage[contextKey] = {};
+    let pData = manualLedgerStorage[contextKey][name] || { matches: 0, silver: 0, gold: 0, fours: 0, wickets: 0, points: 0 };
+    
     document.getElementById("ledg_matches").value = pData.matches || 0;
     document.getElementById("ledg_silver").value = pData.silver || 0;
     document.getElementById("ledg_gold").value = pData.gold || 0;
@@ -355,9 +371,22 @@ function loadSelectedPlayerLedgerProfile(name) {
     document.getElementById("ledg_points").value = pData.points || 0;
 }
 
+function onFilterViewScopeContextChanged() {
+    let contextKey = getActiveLedgerStorageKeyLabel();
+    document.getElementById("ledgerScopeStatusBadgeLabel").innerText = "Editing Mode Context: " + contextKey.replace("WEEK:", "WEEKLY ").replace("MONTH:", "MONTHLY ").replace("MATCHINDEX:", "");
+    
+    let name = document.getElementById("ledgerPlayerSelectorTarget").value;
+    if (name) { loadSelectedPlayerLedgerProfile(name); }
+    renderMatchHistory();
+}
+
 function submitManualLedgerOverrideProfile() {
     let name = document.getElementById("ledgerPlayerSelectorTarget").value; if (!name) { alert("Please select a player profile first!"); return; }
-    manualLedgerStorage[name] = {
+    let contextKey = getActiveLedgerStorageKeyLabel();
+    
+    if (!manualLedgerStorage[contextKey]) manualLedgerStorage[contextKey] = {};
+    
+    manualLedgerStorage[contextKey][name] = {
         name: name,
         matches: parseInt(document.getElementById("ledg_matches").value) || 0,
         silver: parseInt(document.getElementById("ledg_silver").value) || 0,
@@ -366,9 +395,10 @@ function submitManualLedgerOverrideProfile() {
         wickets: parseInt(document.getElementById("ledg_wickets").value) || 0,
         points: parseInt(document.getElementById("ledg_points").value) || 0
     };
+    
     localStorage.setItem("ns_manual_ledger", JSON.stringify(manualLedgerStorage));
     database.ref("tournament_manual_override_ledger").set(manualLedgerStorage);
-    alert(`Success! Overrode manual blueprint records for ${name}.`);
+    alert(`Success! Saved separate override records for ${name} under ${contextKey.replace("WEEK:", "Weekly ").replace("MONTH:", "Monthly ")} context.`);
     renderMatchHistory();
 }
 
@@ -393,14 +423,15 @@ function populateWeeklyFilterDropdownOptions() {
 function exportStandingsHubToPNGImage() {
     const element = document.getElementById("snapshotCaptureOuterWrapper"); if (!element) return;
     html2canvas(element, { backgroundColor: "#0f172a", scale: 2 }).then(canvas => {
-        const dAnchor = document.createElement("a"); dAnchor.href = canvas.toDataURL("image/png"); dAnchor.download = "NewSmashers_Filtered_Leaderboard.png"; dAnchor.click();
+        const dAnchor = document.createElement("a"); dAnchor.href = canvas.toDataURL("image/png"); dAnchor.download = "NewSmashers_Leaderboard_v6_5.png"; dAnchor.click();
     });
 }
 
-// FIXED: RENDERS MATCH INDEX FILTER BY ISOLATING EXTRIES & TRIMMING OUT ZERO COUNTS
+// FIXED: COMPLES DATA SEPARATELY BY COMBINING ORIGINAL MATCH ENTRIES AND SPECIFIC OVERRIDE BLUEPRINTS
 function renderMatchHistory() {
     const historyContainer = document.getElementById("historyListContainer"); if (!historyContainer) return;
     let filterScope = document.getElementById("leaderboardFilterScope").value;
+    let contextKey = getActiveLedgerStorageKeyLabel();
     let filteredMatches = [...matchHistory];
 
     if (filterScope === "week") {
@@ -419,8 +450,8 @@ function renderMatchHistory() {
 
     let batsmanMetrics = {}; 
     MASTER_ROSTER.forEach(n => { 
-        // Only load manual baseline records if compiling the global overall view
-        let override = (filterScope === "overall") ? (manualLedgerStorage[n] || {}) : {};
+        // Loads data inputs matched strictly to this context profile bucket slice
+        let override = (manualLedgerStorage[contextKey] && manualLedgerStorage[contextKey][n]) ? manualLedgerStorage[contextKey][n] : {};
         batsmanMetrics[n] = { name: n, matches: override.matches||0, fours: override.fours||0, silver: override.silver||0, gold: override.gold||0, wickets: override.wickets||0, points: override.points||0 }; 
     });
 
@@ -436,15 +467,14 @@ function renderMatchHistory() {
         }
     });
 
-    // FIXED CRITERIA: ONLY LIST WHO ARE HAVING ENTRY (TRIMS AWAY EXTRA WALL OF ZEROS FOR NEAT LAYOUT)
     let lBat = Object.values(batsmanMetrics).filter(p => p.matches > 0 || p.fours > 0).sort((a,b) => b.fours - a.fours);
     let lBowl = Object.values(batsmanMetrics).filter(p => p.matches > 0 || p.wickets > 0).sort((a,b) => b.wickets - a.wickets);
     let lFld = Object.values(batsmanMetrics).filter(p => p.matches > 0 || p.points > 0).sort((a,b) => b.points - a.points);
 
     let headingTitleText = "OVERALL STATUS SUMMARY";
-    if (filterScope === "week") headingTitleText = document.getElementById("filterSpecificWeekDropdown").value || "WEEKLY REPORT";
-    if (filterScope === "month") headingTitleText = "MONTHLY COMPILATION - ID: " + document.getElementById("filterSpecificMonthDropdown").value;
-    if (filterScope === "match-index") headingTitleText = "ISOLATED SPECIFIC TARGET: " + document.getElementById("filterSpecificMatchIndexDropdown").value;
+    if (filterScope === "week") headingTitleText = (document.getElementById("filterSpecificWeekDropdown").value || "WEEKLY REPORT").toUpperCase();
+    if (filterScope === "month") headingTitleText = "MONTHLY OVERVIEW OVERVIEW - CODE ID: " + document.getElementById("filterSpecificMonthDropdown").value;
+    if (filterScope === "match-index") headingTitleText = "ISOLATED TARGET RUN LOG: " + document.getElementById("filterSpecificMatchIndexDropdown").value;
 
     let individualMatchLogsHTML = `<h4 style="color:#94a3b8; font-size:12px; text-transform:uppercase; margin-bottom:10px; margin-top:20px;">📋 Individual Raw Game Logs Included</h4>`;
     filteredMatches.forEach(match => {
@@ -455,7 +485,7 @@ function renderMatchHistory() {
     });
 
     historyContainer.innerHTML = `<div class="snapshot-target-card">
-        <h3 style="color:#f59e0b; text-align:center; font-size:14px; margin-bottom:4px; text-transform:uppercase;">🏆 ACCUMULATED STANDINGS HUB 🏆</h3>
+        <h3 style="color:#f59e0b; text-align:center; font-size:14px; margin-bottom:4px; text-transform:uppercase;">🏆 ACCUMULATED STANDINGS HUB (v7.0) 🏆</h3>
         <div style="font-size:11px; text-align:center; color:#94a3b8; font-weight:bold; margin-bottom:12px; text-transform:uppercase;">📊 Scope: ${headingTitleText}</div>
         
         <div class="report-title">🏏 MOST FOURS RANKING</div>
@@ -483,7 +513,7 @@ function toggleFilterInputs(s) {
     if (s === "week") document.getElementById("weekFilterGroup").classList.remove("hidden");
     else if (s === "month") document.getElementById("monthFilterGroup").classList.remove("hidden");
     else if (s === "match-index") document.getElementById("matchIndexFilterGroup").classList.remove("hidden");
-    renderMatchHistory();
+    onFilterViewScopeContextChanged();
 }
 
 function clearAllHistory() { if (confirm("Clear history?")) { matchHistory = []; localStorage.removeItem("ns_match_history"); database.ref("tournament_match_history").set([]); renderMatchHistory(); } }
