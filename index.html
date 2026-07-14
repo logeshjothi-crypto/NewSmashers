@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewSmashers v6.5</title>
+    <title>NewSmashers v7.0</title>
     <link rel="manifest" href="manifest.json">
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -72,7 +72,6 @@
             <input type="text" id="teamB" placeholder="Team B Name (e.g., SBG)">
             
             <label style="font-size: 12px; color:#94a3b8; font-weight:bold; margin-top:6px; display:block;">Select Match Number Index</label>
-            <!-- EXPANDED TO 15 MATCHES OPTION -->
             <select id="matchNumberSelectorIndex">
                 <option value="Match 1">Match 1</option><option value="Match 2">Match 2</option>
                 <option value="Match 3">Match 3</option><option value="Match 4">Match 4</option>
@@ -95,7 +94,6 @@
                 <p id="liveTeams" style="color: #38bdf8; font-size: 16px; font-weight: bold; line-height: 1.4; background: rgba(56, 189, 248, 0.1); padding: 6px 14px; border-radius: 8px; width: 100%; border: 1px dashed rgba(56, 189, 248, 0.2);">Current Match CSK [0 / 0] - SBG [0 / 0]</p>
             </div>
 
-            <!-- Manual Innings Closure Panels -->
             <div id="manualInningsClosurePanel" class="card hidden" style="background: #78350f; border: 2px solid #f59e0b; margin-bottom: 15px; padding: 12px; text-align: center;">
                 <p style="font-weight: bold; margin-bottom: 8px; color: #fef08a; font-size: 13px;">⚠️ 1ST INNINGS COMPLETE (REVIEW ENTRIES)</p>
                 <button class="menu-btn" style="background: #f59e0b; color: #0f172a; padding: 10px; font-size: 14px;" onclick="commitInningsTransitionBreak()">🔒 Close & Transition Innings</button>
@@ -149,12 +147,11 @@
                 </select>
                 
                 <div id="weekFilterGroup" class="filter-group hidden">
-                    <select id="filterSpecificWeekDropdown" onchange="renderMatchHistory()"></select>
+                    <select id="filterSpecificWeekDropdown" onchange="onFilterViewScopeContextChanged()"></select>
                 </div>
 
-                <!-- ADDED MONTH SELECTION FROM USER PROMPT -->
                 <div id="monthFilterGroup" class="filter-group hidden">
-                    <select id="filterSpecificMonthDropdown" onchange="renderMatchHistory()">
+                    <select id="filterSpecificMonthDropdown" onchange="onFilterViewScopeContextChanged()">
                         <option value="01">January</option><option value="02">February</option>
                         <option value="03">March</option><option value="04">April</option>
                         <option value="05">May</option><option value="06">June</option>
@@ -164,9 +161,8 @@
                     </select>
                 </div>
 
-                <!-- MATCH 1 TO 15 DROPDOWN SELECTOR -->
                 <div id="matchIndexFilterGroup" class="filter-group hidden">
-                    <select id="filterSpecificMatchIndexDropdown" onchange="renderMatchHistory()">
+                    <select id="filterSpecificMatchIndexDropdown" onchange="onFilterViewScopeContextChanged()">
                         <option value="Match 1">Match 1 Only</option><option value="Match 2">Match 2 Only</option>
                         <option value="Match 3">Match 3 Only</option><option value="Match 4">Match 4 Only</option>
                         <option value="Match 5">Match 5 Only</option><option value="Match 6">Match 6 Only</option>
@@ -181,9 +177,10 @@
                 <button class="image-export-btn" onclick="exportStandingsHubToPNGImage()">📸 Export Standing Cards as Image</button>
             </div>
 
-            <!-- ADMIN OVERRIDE LEDGER INPUT CONTROLS -->
+            <!-- ADMIN MANUAL OVERRIDE LEDGER SHEET DESIGN AS PER SCREENSHOT -->
             <div id="adminLedgerManualOverrideCard" class="card" style="border: 2px dashed #a855f7; background: rgba(168, 85, 247, 0.05); margin-bottom: 20px;">
                 <h4 style="color:#a855f7; font-size:13px; text-transform:uppercase; text-align:center;">🛠️ ADMIN ROSTER STATS OVERRIDE PANEL</h4>
+                <p id="ledgerScopeStatusBadgeLabel" style="font-size:11px; text-align:center; color:#e2e8f0; font-weight:bold; margin-top:3px;">Editing Mode Context: OVERALL</p>
                 
                 <label style="font-size:11px; color:#94a3b8; font-weight:bold; margin-top:8px; display:block;">Select Roster Target Player Profile</label>
                 <select id="ledgerPlayerSelectorTarget" onchange="loadSelectedPlayerLedgerProfile(this.value)"></select>
