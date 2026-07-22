@@ -62,7 +62,8 @@ const MASTER_ROSTER = [
     "Abbas", "David", "Gaja", "Karthi anna", "Karthi S G", 
     "Karthik Bro", "Logan", "Madhan", "Praveen", "Raj", 
     "Rajesh", "Ramesh", "Ram", "Senthil", "Sun", 
-    "Suresh", "Thamizh", "Thiyagu", "Vicky", "XYZ1", "XYZ2", "XYZ3"
+    "Suresh", "Thamizh", "Thiyagu", "Vicky", "Sasi", 
+    "XYZ1", "XYZ2", "XYZ3"
 ];
 
 let teamAPlayers = [];
